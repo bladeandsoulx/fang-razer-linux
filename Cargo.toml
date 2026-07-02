@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/fang-protocol", "crates/fangd"]
+# The Tauri shell builds standalone (own lockfile) so daemon builds stay lean.
+exclude = ["app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Fang daemon — performance and fan control for Razer Blade laptops
+Documentation=https://github.com/solomonmorse/fang
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/fangd
+Restart=on-failure
+RestartSec=3
+StateDirectory=fangd
+# Hardening: the daemon only needs hidraw, hwmon/nvml and its state dir.
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

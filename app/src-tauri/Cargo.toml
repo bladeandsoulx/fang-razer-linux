@@ -1,0 +1,28 @@
+[package]
+name = "fang"
+description = "Fang — Synapse-style control center for Razer Blade laptops on Linux"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0"
+repository = "https://github.com/solomonmorse/fang"
+authors = ["Solomon Morse <bladeandsoulx@protonmail.com>"]
+
+# Standalone: not a member of the repo-root cargo workspace.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+fang-protocol = { path = "../../crates/fang-protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros"] }
+log = "0.4"
+env_logger = "0.11"
+
+[profile.release]
+strip = true
+lto = true

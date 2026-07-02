@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+# UI clients talk to /run/fangd.sock through membership in this group.
+if ! getent group fang >/dev/null; then
+    addgroup --system fang
+fi
+
+#DEBHELPER#
