@@ -1,0 +1,187 @@
+//! JSON-lines API between `fangd` and clients.
+//!
+//! Client sends one JSON object per line: `{"id": 1, "cmd": "get_status"}`.
+//! Daemon answers `{"id": 1, "ok": true, "data": {...}}` and, after a
+//! `subscribe`, pushes `{"event": "telemetry", "data": {...}}` lines.
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PerfMode {
+    Balanced,
+    Gaming,
+    Creator,
+    Silent,
+    Custom,
+}
+
+impl PerfMode {
+    pub fn to_ec(self) -> u8 {
+        match self {
+            PerfMode::Balanced => 0,
+            PerfMode::Gaming => 1,
+            PerfMode::Creator => 2,
+            PerfMode::Silent => 3,
+            PerfMode::Custom => 4,
+        }
+    }
+}
+
+/// CPU/GPU power boost levels, meaningful in [`PerfMode::Custom`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Boost {
+    Low,
+    Medium,
+    High,
+    /// Overclock; CPU only, models with the "boost" feature.
+    Boost,
+}
+
+impl Boost {
+    pub fn to_ec(self) -> u8 {
+        match self {
+            Boost::Low => 0,
+            Boost::Medium => 1,
+            Boost::High => 2,
+            Boost::Boost => 3,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum FanMode {
+    Auto,
+    Manual { rpm: u16 },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Request {
+    pub id: u64,
+    #[serde(flatten)]
+    pub cmd: Command,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "cmd", rename_all = "snake_case")]
+pub enum Command {
+    GetStatus,
+    SetPerfMode {
+        perf_mode: PerfMode,
+        #[serde(default)]
+        cpu_boost: Option<Boost>,
+        #[serde(default)]
+        gpu_boost: Option<Boost>,
+    },
+    SetFan {
+        #[serde(flatten)]
+        fan: FanMode,
+    },
+    /// Start receiving `telemetry` / `state_changed` events on this connection.
+    Subscribe,
+    Ping,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Response {
+    pub id: u64,
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl Response {
+    pub fn ok(id: u64, data: impl Serialize) -> Response {
+        Response {
+            id,
+            ok: true,
+            data: Some(serde_json::to_value(data).expect("serializable")),
+            error: None,
+        }
+    }
+
+    pub fn err(id: u64, msg: impl Into<String>) -> Response {
+        Response { id, ok: false, data: None, error: Some(msg.into()) }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "event", content = "data", rename_all = "snake_case")]
+pub enum Event {
+    Telemetry(Telemetry),
+    StateChanged(Status),
+}
+
+/// Full daemon/device state, returned by `get_status` and on `state_changed`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Status {
+    pub model: String,
+    /// False when no Razer laptop was found (daemon still runs, monitor-only).
+    pub device_present: bool,
+    /// False when the device's PID is not in the model table; controls still
+    /// work but limits are conservative defaults.
+    pub verified: bool,
+    pub mock: bool,
+    pub perf_mode: PerfMode,
+    pub cpu_boost: Boost,
+    pub gpu_boost: Boost,
+    pub fan: FanMode,
+    pub fan_rpm_min: u16,
+    pub fan_rpm_max: u16,
+    pub has_cpu_boost_oc: bool,
+    pub daemon_version: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Telemetry {
+    pub cpu_temp_c: Option<f32>,
+    pub gpu_temp_c: Option<f32>,
+    /// Measured RPM per fan (empty when unreadable).
+    pub fan_rpm: Vec<u32>,
+    pub ts_ms: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_wire_format() {
+        let r: Request =
+            serde_json::from_str(r#"{"id":3,"cmd":"set_fan","mode":"manual","rpm":4400}"#).unwrap();
+        assert_eq!(r.id, 3);
+        match r.cmd {
+            Command::SetFan { fan: FanMode::Manual { rpm } } => assert_eq!(rpm, 4400),
+            other => panic!("bad parse: {other:?}"),
+        }
+
+        let r: Request = serde_json::from_str(
+            r#"{"id":4,"cmd":"set_perf_mode","perf_mode":"custom","cpu_boost":"boost"}"#,
+        )
+        .unwrap();
+        match r.cmd {
+            Command::SetPerfMode { perf_mode, cpu_boost, gpu_boost } => {
+                assert_eq!(perf_mode, PerfMode::Custom);
+                assert_eq!(cpu_boost, Some(Boost::Boost));
+                assert_eq!(gpu_boost, None);
+            }
+            other => panic!("bad parse: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn event_wire_format() {
+        let e = Event::Telemetry(Telemetry {
+            cpu_temp_c: Some(61.5),
+            gpu_temp_c: None,
+            fan_rpm: vec![2300, 2280],
+            ts_ms: 12,
+        });
+        let s = serde_json::to_string(&e).unwrap();
+        assert!(s.starts_with(r#"{"event":"telemetry","data":{"#), "{s}");
+    }
+}
