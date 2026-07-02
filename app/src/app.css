@@ -1,0 +1,168 @@
+/* Fang — industrial instrument-cluster theme */
+
+:root {
+  --bg: #0a0c0d;
+  --panel: #131619;
+  --panel-2: #181c20;
+  --panel-edge: #22282d;
+  --panel-edge-hi: #2e363c;
+  --ink: #d9dfdc;
+  --ink-dim: #7c8790;
+  --ink-faint: #4b545c;
+  --green: #44d62c;
+  --green-soft: #6fe55b;
+  --green-dim: #1f7a12;
+  --green-glow: rgba(68, 214, 44, 0.32);
+  --amber: #ffb454;
+  --red: #ff5c5c;
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', Ubuntu, 'DejaVu Sans', sans-serif;
+  --font-data: 'Cascadia Code', 'JetBrains Mono', 'Ubuntu Mono', Consolas, monospace;
+  --rail-w: 208px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layered atmosphere: green breath top-left + carbon weave + scanlines */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 520px at -5% -12%, rgba(68, 214, 44, 0.075), transparent 62%),
+    radial-gradient(700px 480px at 108% 112%, rgba(68, 214, 44, 0.04), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 6px);
+  z-index: 0;
+}
+
+#app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    rgba(0, 0, 0, 0.14) 3px 4px
+  );
+  opacity: 0.35;
+  z-index: 0;
+}
+
+.card {
+  position: relative;
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.card-label {
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.mono {
+  font-family: var(--font-data);
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* range input — used by the fan RPM slider */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, var(--green-dim), var(--green) var(--fill, 50%), #232a2f var(--fill, 50%));
+  border: 1px solid #2a3237;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #0c0f10;
+  border: 2px solid var(--green);
+  box-shadow: 0 0 12px var(--green-glow), 0 0 2px var(--green);
+  transition: box-shadow 0.15s ease;
+}
+
+input[type='range']:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 20px var(--green-glow), 0 0 4px var(--green);
+}
+
+input[type='range']:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+::selection {
+  background: var(--green-dim);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(68, 214, 44, 0.18), inset 0 0 0 1px rgba(68, 214, 44, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(68, 214, 44, 0.34), inset 0 0 0 1px rgba(68, 214, 44, 0.85);
+  }
+}
