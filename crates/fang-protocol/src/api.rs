@@ -57,6 +57,19 @@ pub enum FanMode {
     Manual { rpm: u16 },
 }
 
+/// Which GPU drives the system (the Linux take on Synapse's "GPU mode" /
+/// Advanced Optimus). Switching takes effect at the next logout/reboot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuMode {
+    /// iGPU only; dGPU powered off (battery life).
+    Integrated,
+    /// NVIDIA PRIME render offload (on-demand dGPU).
+    Hybrid,
+    /// dGPU drives everything (lowest latency, external-display friendly).
+    Dedicated,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Request {
     pub id: u64,
@@ -79,6 +92,8 @@ pub enum Command {
         #[serde(flatten)]
         fan: FanMode,
     },
+    /// Switch the active GPU (applies at next logout/reboot).
+    SetGpuMode { gpu_mode: GpuMode },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
@@ -133,6 +148,11 @@ pub struct Status {
     pub fan_rpm_min: u16,
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
+    /// None when no supported GPU-switching tool is available on the host.
+    pub gpu_mode: Option<GpuMode>,
+    /// True when the GPU mode was changed this boot and needs a
+    /// logout/reboot to take effect.
+    pub gpu_mode_pending: bool,
     pub daemon_version: String,
 }
 
@@ -169,6 +189,17 @@ mod tests {
                 assert_eq!(cpu_boost, Some(Boost::Boost));
                 assert_eq!(gpu_boost, None);
             }
+            other => panic!("bad parse: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn gpu_mode_wire_format() {
+        let r: Request =
+            serde_json::from_str(r#"{"id":9,"cmd":"set_gpu_mode","gpu_mode":"dedicated"}"#)
+                .unwrap();
+        match r.cmd {
+            Command::SetGpuMode { gpu_mode } => assert_eq!(gpu_mode, GpuMode::Dedicated),
             other => panic!("bad parse: {other:?}"),
         }
     }

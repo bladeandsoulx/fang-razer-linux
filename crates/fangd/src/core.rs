@@ -1,5 +1,6 @@
 //! Shared daemon core: hardware handle + desired state + status assembly.
 
+use crate::gpu::GpuSwitch;
 use crate::hw::Hw;
 use crate::state::AppliedState;
 use fang_protocol::api::{Boost, Command, FanMode, Status};
@@ -7,13 +8,19 @@ use std::path::PathBuf;
 
 pub struct Core {
     hw: Box<dyn Hw>,
+    gpu: Box<dyn GpuSwitch>,
     pub state: AppliedState,
     state_path: PathBuf,
 }
 
 impl Core {
-    pub fn new(hw: Box<dyn Hw>, state: AppliedState, state_path: PathBuf) -> Core {
-        Core { hw, state, state_path }
+    pub fn new(
+        hw: Box<dyn Hw>,
+        gpu: Box<dyn GpuSwitch>,
+        state: AppliedState,
+        state_path: PathBuf,
+    ) -> Core {
+        Core { hw, gpu, state, state_path }
     }
 
     pub fn status(&self) -> Status {
@@ -30,6 +37,8 @@ impl Core {
             fan_rpm_min: info.fan_rpm_min,
             fan_rpm_max: info.fan_rpm_max,
             has_cpu_boost_oc: info.has_cpu_boost_oc,
+            gpu_mode: self.gpu.current(),
+            gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
@@ -70,6 +79,11 @@ impl Core {
                 } else {
                     next.fan = FanMode::Auto;
                 }
+            }
+            Command::SetGpuMode { gpu_mode } => {
+                // Persisted by the PRIME tool itself, not our state file.
+                self.gpu.set(*gpu_mode)?;
+                return Ok(true);
             }
             _ => return Ok(false),
         }

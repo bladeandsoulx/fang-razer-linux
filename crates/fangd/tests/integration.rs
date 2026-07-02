@@ -101,6 +101,19 @@ fn daemon_end_to_end() {
     let v = roundtrip(&mut reader, &mut writer, r#"{"id":5,"cmd":"set_fan","mode":"auto"}"#);
     assert_eq!(v["data"]["fan"]["mode"], "auto", "{v}");
 
+    // gpu mode: mock starts hybrid, switching marks a pending reboot
+    let v = roundtrip(&mut reader, &mut writer, r#"{"id":10,"cmd":"get_status"}"#);
+    assert_eq!(v["data"]["gpu_mode"], "hybrid", "{v}");
+    assert_eq!(v["data"]["gpu_mode_pending"], false);
+    let v = roundtrip(
+        &mut reader,
+        &mut writer,
+        r#"{"id":11,"cmd":"set_gpu_mode","gpu_mode":"dedicated"}"#,
+    );
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["data"]["gpu_mode"], "dedicated");
+    assert_eq!(v["data"]["gpu_mode_pending"], true);
+
     // subscribe → telemetry event arrives within a few seconds
     let v = roundtrip(&mut reader, &mut writer, r#"{"id":6,"cmd":"subscribe"}"#);
     assert_eq!(v["ok"], true, "{v}");

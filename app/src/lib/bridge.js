@@ -2,7 +2,7 @@
 // built-in simulator with the same wire shapes, so the UI can be developed
 // and demoed without the daemon.
 
-import { connected, status, telemetry, uiSettings } from './stores.js';
+import { connected, display, status, telemetry, uiSettings } from './stores.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -24,9 +24,11 @@ async function initTauri() {
   await listen('fang://telemetry', (e) => telemetry.set(e.payload));
 
   try {
-    connected.set(await invoke('daemon_connected'));
-    if (await invoke('daemon_connected')) status.set(await invoke('get_status'));
+    const up = await invoke('daemon_connected');
+    connected.set(up);
+    if (up) status.set(await invoke('get_status'));
     uiSettings.set(await invoke('get_ui_settings'));
+    display.set(await invoke('get_display'));
   } catch (e) {
     console.error('bridge init', e);
   }
@@ -53,6 +55,22 @@ export async function saveUiSettings(next) {
   if (invoke) await invoke('set_ui_settings', { settings: next });
 }
 
+export async function setGpuMode(gpuMode) {
+  if (invoke) {
+    status.set(await invoke('set_gpu_mode', { gpuMode }));
+  } else {
+    sim.setGpuMode(gpuMode);
+  }
+}
+
+export async function setRefreshRate(hz) {
+  if (invoke) {
+    display.set(await invoke('set_refresh_rate', { hz }));
+  } else {
+    sim.setRefreshRate(hz);
+  }
+}
+
 // ---------------------------------------------------------------- simulator
 
 const sim = {
@@ -68,7 +86,17 @@ const sim = {
     fan_rpm_min: 2200,
     fan_rpm_max: 5000,
     has_cpu_boost_oc: true,
+    gpu_mode: 'hybrid',
+    gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
+  },
+  displayInfo: {
+    supported: true,
+    output: 'eDP-1 (simulated)',
+    resolution: '2560x1600',
+    current_hz: 240,
+    available_hz: [60, 120, 240],
+    hint: ''
   },
   cpu: 52,
   gpu: 46,
@@ -128,12 +156,26 @@ const sim = {
     }
     this.state.fan = fan;
     this.push();
+  },
+
+  setGpuMode(mode) {
+    if (this.state.gpu_mode !== mode) {
+      this.state.gpu_mode = mode;
+      this.state.gpu_mode_pending = true;
+    }
+    this.push();
+  },
+
+  setRefreshRate(hz) {
+    this.displayInfo = { ...this.displayInfo, current_hz: hz };
+    display.set(this.displayInfo);
   }
 };
 
 function initSim() {
   connected.set(true);
   uiSettings.set({ autostart: false, close_to_tray: true });
+  display.set(sim.displayInfo);
   sim.push();
   sim.tick();
   setInterval(() => sim.tick(), 1000);

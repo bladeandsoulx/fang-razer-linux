@@ -8,6 +8,11 @@ Performance modes, fan control and live thermals — no Windows required.
   models)
 - 🌀 **Fan control** — automatic EC curve or manual RPM, clamped to per-model
   safe limits
+- 🖼 **GPU mode** — Integrated / Hybrid / dGPU switching via `prime-select`
+  or `envycontrol` (the Linux equivalent of Synapse's GPU mode; applies at
+  next logout/reboot)
+- ⚡ **Refresh rate** — switch the internal panel's Hz instantly
+  (kscreen-doctor or xrandr; GNOME Wayland users: Settings → Displays)
 - 📊 **Live dashboard** — CPU/GPU temperatures, fan RPM, 90-second history
 - 🖥 **Tray + autostart** — quick mode switching from the system tray
 - 🔁 Settings persist and are re-applied after reboot and suspend/resume

@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod client;
+mod display;
 
 use client::Client;
-use fang_protocol::api::{Boost, Command, FanMode, PerfMode};
+use fang_protocol::api::{Boost, Command, FanMode, GpuMode, PerfMode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -61,6 +62,21 @@ async fn set_perf_mode(
 #[tauri::command]
 async fn set_fan(client: State<'_, Client>, fan: FanMode) -> Result<Value, String> {
     client.request(Command::SetFan { fan }).await
+}
+
+#[tauri::command]
+async fn set_gpu_mode(client: State<'_, Client>, gpu_mode: GpuMode) -> Result<Value, String> {
+    client.request(Command::SetGpuMode { gpu_mode }).await
+}
+
+#[tauri::command]
+fn get_display() -> display::DisplayInfo {
+    display::get()
+}
+
+#[tauri::command]
+fn set_refresh_rate(hz: u32) -> Result<display::DisplayInfo, String> {
+    display::set(hz)
 }
 
 #[tauri::command]
@@ -185,6 +201,9 @@ fn main() {
             get_status,
             set_perf_mode,
             set_fan,
+            set_gpu_mode,
+            get_display,
+            set_refresh_rate,
             get_ui_settings,
             set_ui_settings
         ])

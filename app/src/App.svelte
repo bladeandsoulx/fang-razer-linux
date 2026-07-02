@@ -3,6 +3,7 @@
   import Dashboard from './screens/Dashboard.svelte';
   import Performance from './screens/Performance.svelte';
   import FanScreen from './screens/FanScreen.svelte';
+  import GpuDisplay from './screens/GpuDisplay.svelte';
   import Settings from './screens/Settings.svelte';
   import Disconnected from './screens/Disconnected.svelte';
   import { connected, status } from './lib/stores.js';
@@ -12,6 +13,7 @@
     { id: 'dashboard', title: 'Dashboard', icon: 'dashboard', component: Dashboard },
     { id: 'performance', title: 'Performance', icon: 'performance', component: Performance },
     { id: 'fan', title: 'Fan', icon: 'fan', component: FanScreen },
+    { id: 'gpu', title: 'GPU & Display', icon: 'gpu', component: GpuDisplay },
     { id: 'settings', title: 'Settings', icon: 'settings', component: Settings }
   ];
 

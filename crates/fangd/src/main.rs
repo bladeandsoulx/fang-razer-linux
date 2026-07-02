@@ -1,4 +1,5 @@
 mod core;
+mod gpu;
 mod hw;
 mod server;
 mod state;
@@ -64,7 +65,8 @@ async fn main() {
     let state_path = args.state.clone().unwrap_or_else(state::default_state_path);
     let state = AppliedState::load(&state_path);
     let hw = hw::open(args.mock);
-    let mut core = Core::new(hw, state, state_path);
+    let gpu = gpu::open(args.mock);
+    let mut core = Core::new(hw, gpu, state, state_path);
     core.reapply();
     log::info!("fangd {} — {}", env!("CARGO_PKG_VERSION"), core.status().model);
 

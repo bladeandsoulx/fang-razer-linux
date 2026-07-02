@@ -90,7 +90,9 @@ where
                         }
                         Response::ok(id, "subscribed")
                     }
-                    ref cmd @ (Command::SetPerfMode { .. } | Command::SetFan { .. }) => {
+                    ref cmd @ (Command::SetPerfMode { .. }
+                    | Command::SetFan { .. }
+                    | Command::SetGpuMode { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {

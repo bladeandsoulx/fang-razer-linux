@@ -69,6 +69,18 @@ dashboard. On the Blade 18, CPU "Boost" (overclock) is available — expect
 temps near the high 90s °C under all-core load; that's Razer's intended
 envelope, but back off if you're uncomfortable.
 
+## 6b. GPU mode & refresh rate
+
+- **GPU mode** (GPU & Display screen) needs `prime-select` (comes with
+  Ubuntu's NVIDIA driver) or `envycontrol`. Switch Hybrid → Integrated, check
+  `prime-select query` reflects it, reboot, confirm `nvidia-smi` fails (dGPU
+  off) and battery drain drops. Switch back to Hybrid the same way. The UI
+  shows an amber "staged" banner until the reboot.
+- **Refresh rate** applies instantly. On KDE or X11 sessions switch
+  240 → 60 Hz and back; cursor motion makes the change obvious. On GNOME
+  Wayland the screen shows a pointer to Settings → Displays instead (mutter
+  API not wired up in v1).
+
 ## 7. Persistence
 
 - `sudo systemctl restart fangd` → previous mode/fan settings re-applied
