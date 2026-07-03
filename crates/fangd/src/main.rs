@@ -24,7 +24,9 @@ struct Args {
 
 fn parse_args() -> Args {
     let mut args = Args {
-        mock: std::env::var("FANGD_MOCK").map(|v| v == "1").unwrap_or(false),
+        mock: std::env::var("FANGD_MOCK")
+            .map(|v| v == "1")
+            .unwrap_or(false),
         tcp: None,
         socket: None,
         state: None,
@@ -68,7 +70,11 @@ async fn main() {
     let gpu = gpu::open(args.mock);
     let mut core = Core::new(hw, gpu, state, state_path);
     core.reapply();
-    log::info!("fangd {} — {}", env!("CARGO_PKG_VERSION"), core.status().model);
+    log::info!(
+        "fangd {} — {}",
+        env!("CARGO_PKG_VERSION"),
+        core.status().model
+    );
 
     let core: server::SharedCore = Arc::new(Mutex::new(core));
     let bus = server::event_bus();
@@ -76,7 +82,10 @@ async fn main() {
 
     #[cfg(unix)]
     if args.tcp.is_none() {
-        let path = args.socket.clone().unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET));
+        let path = args
+            .socket
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET));
         let _ = std::fs::remove_file(&path);
         let listener = tokio::net::UnixListener::bind(&path)
             .unwrap_or_else(|e| panic!("bind {}: {e}", path.display()));
@@ -96,8 +105,9 @@ async fn main() {
     }
 
     let addr = args.tcp.unwrap_or_else(|| DEFAULT_TCP.to_string());
-    let listener =
-        tokio::net::TcpListener::bind(&addr).await.unwrap_or_else(|e| panic!("bind {addr}: {e}"));
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| panic!("bind {addr}: {e}"));
     log::info!("listening on tcp://{addr}");
     loop {
         tokio::select! {

@@ -1,0 +1,23 @@
+name: Bug report
+description: Something broken in the app or daemon
+labels: [bug]
+body:
+  - type: input
+    id: system
+    attributes:
+      label: System
+      placeholder: "Blade 18 2023 · Ubuntu 24.04 · GNOME Wayland · nvidia 555"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`journalctl -u fangd -b` for daemon issues; run `fang` from a terminal for app issues"
+      render: text

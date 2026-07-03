@@ -29,7 +29,10 @@ impl AppliedState {
             Ok(s) => match serde_json::from_str(&s) {
                 Ok(state) => state,
                 Err(e) => {
-                    log::warn!("state file {} unreadable ({e}), using defaults", path.display());
+                    log::warn!(
+                        "state file {} unreadable ({e}), using defaults",
+                        path.display()
+                    );
                     AppliedState::default()
                 }
             },

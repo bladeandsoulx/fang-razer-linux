@@ -47,7 +47,10 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
             cpu_temp_c: s.cpu_temp_c,
             gpu_temp_c: s.gpu_temp_c,
             fan_rpm: s.fan_rpm,
-            ts_ms: now.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
+            ts_ms: now
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
         };
         let _ = bus.send(event_line(&Event::Telemetry(telemetry)));
     }

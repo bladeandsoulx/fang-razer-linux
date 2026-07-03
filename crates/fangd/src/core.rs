@@ -20,7 +20,12 @@ impl Core {
         state: AppliedState,
         state_path: PathBuf,
     ) -> Core {
-        Core { hw, gpu, state, state_path }
+        Core {
+            hw,
+            gpu,
+            state,
+            state_path,
+        }
     }
 
     pub fn status(&self) -> Status {
@@ -59,7 +64,11 @@ impl Core {
     pub fn handle_set(&mut self, cmd: &Command) -> Result<bool, String> {
         let mut next = self.state;
         match cmd {
-            Command::SetPerfMode { perf_mode, cpu_boost, gpu_boost } => {
+            Command::SetPerfMode {
+                perf_mode,
+                cpu_boost,
+                gpu_boost,
+            } => {
                 next.perf_mode = *perf_mode;
                 if let Some(b) = cpu_boost {
                     next.cpu_boost = *b;

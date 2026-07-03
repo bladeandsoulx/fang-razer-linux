@@ -40,7 +40,13 @@ impl RazerHw {
             format!("{product} (pid {pid:04x}, unverified)")
         };
         log::info!("found {name}");
-        Ok(RazerHw { device, model, verified, name, sensors: Sensors::discover() })
+        Ok(RazerHw {
+            device,
+            model,
+            verified,
+            name,
+            sensors: Sensors::discover(),
+        })
     }
 
     /// Send one report and read back the EC's answer. One retry on busy.
@@ -134,7 +140,11 @@ impl Hw for RazerHw {
                 Err(e) => log::debug!("fan rpm read ({zone:?}): {e}"),
             }
         }
-        Sample { cpu_temp_c, gpu_temp_c, fan_rpm }
+        Sample {
+            cpu_temp_c,
+            gpu_temp_c,
+            fan_rpm,
+        }
     }
 }
 
@@ -145,7 +155,9 @@ pub struct MonitorOnly {
 
 impl MonitorOnly {
     pub fn new() -> MonitorOnly {
-        MonitorOnly { sensors: Sensors::discover() }
+        MonitorOnly {
+            sensors: Sensors::discover(),
+        }
     }
 }
 
@@ -168,6 +180,10 @@ impl Hw for MonitorOnly {
 
     fn sample(&mut self) -> Sample {
         let (cpu_temp_c, gpu_temp_c) = self.sensors.temps();
-        Sample { cpu_temp_c, gpu_temp_c, fan_rpm: vec![] }
+        Sample {
+            cpu_temp_c,
+            gpu_temp_c,
+            fan_rpm: vec![],
+        }
     }
 }

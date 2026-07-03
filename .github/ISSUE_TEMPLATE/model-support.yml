@@ -1,0 +1,52 @@
+name: Laptop model report
+description: Report test results for your Razer Blade so it can get a verified profile
+title: "[model] Razer Blade "
+labels: [hardware, model-support]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Verified results from real machines are how models graduate
+        from "unverified" to a first-class profile. Please run through
+        [HARDWARE_TESTING.md](../blob/main/HARDWARE_TESTING.md) first.
+  - type: input
+    id: model
+    attributes:
+      label: Model + year
+      placeholder: e.g. Razer Blade 18 2023
+    validations:
+      required: true
+  - type: input
+    id: pid
+    attributes:
+      label: USB product id
+      description: Output of `lsusb -d 1532:`
+      placeholder: "Bus 003 Device 004: ID 1532:02a0 Razer USA, Ltd"
+    validations:
+      required: true
+  - type: textarea
+    id: journal
+    attributes:
+      label: Daemon log
+      description: "`journalctl -u fangd -b --no-pager | tail -30`"
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: What worked?
+      options:
+        - label: Daemon finds the device
+        - label: Performance mode switching (step 4)
+        - label: Manual fan RPM + readback (step 5)
+        - label: Custom mode boosts (step 6)
+        - label: GPU mode switching (step 6b)
+        - label: Refresh rate switching (step 6b)
+        - label: Color profiles (step 6c)
+        - label: Persistence across restart/suspend (step 7)
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything unexpected
+      description: Fan limits that felt wrong, EC errors, thermal observations…

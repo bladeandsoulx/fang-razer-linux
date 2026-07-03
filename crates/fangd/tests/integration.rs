@@ -1,8 +1,8 @@
 //! End-to-end test: mock daemon over TCP, real client traffic.
 
-use std::process::{Child, Command, Stdio};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 struct DaemonGuard(Child);
@@ -61,7 +61,9 @@ fn daemon_end_to_end() {
     let _daemon = start_daemon(port, &state);
 
     let stream = connect(port);
-    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut writer = stream;
 
@@ -98,7 +100,11 @@ fn daemon_end_to_end() {
     );
     assert_eq!(v["data"]["fan"]["mode"], "manual", "{v}");
     assert_eq!(v["data"]["fan"]["rpm"], 5000);
-    let v = roundtrip(&mut reader, &mut writer, r#"{"id":5,"cmd":"set_fan","mode":"auto"}"#);
+    let v = roundtrip(
+        &mut reader,
+        &mut writer,
+        r#"{"id":5,"cmd":"set_fan","mode":"auto"}"#,
+    );
     assert_eq!(v["data"]["fan"]["mode"], "auto", "{v}");
 
     // gpu mode: mock starts hybrid, switching marks a pending reboot

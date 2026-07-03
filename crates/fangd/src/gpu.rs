@@ -17,7 +17,10 @@ pub trait GpuSwitch: Send {
 
 pub fn open(mock: bool) -> Box<dyn GpuSwitch> {
     if mock {
-        return Box::new(MockGpu { mode: GpuMode::Hybrid, pending: false });
+        return Box::new(MockGpu {
+            mode: GpuMode::Hybrid,
+            pending: false,
+        });
     }
     #[cfg(target_os = "linux")]
     {
@@ -36,9 +39,11 @@ impl GpuSwitch for Unsupported {
     }
 
     fn set(&mut self, _mode: GpuMode) -> Result<(), String> {
-        Err("no supported GPU switching tool found (install nvidia-prime's \
+        Err(
+            "no supported GPU switching tool found (install nvidia-prime's \
              prime-select or envycontrol)"
-            .into())
+                .into(),
+        )
     }
 
     fn pending(&self) -> bool {
@@ -106,11 +111,17 @@ mod linux {
         pub fn detect() -> Option<PrimeTool> {
             if run("prime-select", &["query"]).is_ok() {
                 log::info!("gpu switching via prime-select");
-                return Some(PrimeTool { tool: Tool::PrimeSelect, pending: false });
+                return Some(PrimeTool {
+                    tool: Tool::PrimeSelect,
+                    pending: false,
+                });
             }
             if run("envycontrol", &["--query"]).is_ok() {
                 log::info!("gpu switching via envycontrol");
-                return Some(PrimeTool { tool: Tool::EnvyControl, pending: false });
+                return Some(PrimeTool {
+                    tool: Tool::EnvyControl,
+                    pending: false,
+                });
             }
             log::info!("no prime-select/envycontrol; gpu mode switching disabled");
             None

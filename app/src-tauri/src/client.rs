@@ -78,7 +78,10 @@ async fn open_stream(
 pub fn spawn(app: AppHandle) -> Client {
     let (tx, mut rx) = mpsc::channel::<(Command, Waiter)>(16);
     let connected = Arc::new(AtomicBool::new(false));
-    let client = Client { tx, connected: Arc::clone(&connected) };
+    let client = Client {
+        tx,
+        connected: Arc::clone(&connected),
+    };
 
     tauri::async_runtime::spawn(async move {
         let addr = daemon_addr();

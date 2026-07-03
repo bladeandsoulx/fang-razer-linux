@@ -25,7 +25,10 @@ impl Sensors {
                 None
             }
         };
-        Sensors { cpu_temp_file, nvml }
+        Sensors {
+            cpu_temp_file,
+            nvml,
+        }
     }
 
     pub fn temps(&self) -> (Option<f32>, Option<f32>) {

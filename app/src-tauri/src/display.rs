@@ -59,7 +59,10 @@ mod backend {
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).into_owned())
         } else {
-            Err(format!("{cmd}: {}", String::from_utf8_lossy(&out.stderr).trim()))
+            Err(format!(
+                "{cmd}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
         }
     }
 
@@ -99,7 +102,10 @@ mod backend {
         if run("kscreen-doctor", &["-o"]).is_ok() {
             run(
                 "kscreen-doctor",
-                &[&format!("output.{}.mode.{}@{}", info.output, info.resolution, hz)],
+                &[&format!(
+                    "output.{}.mode.{}@{}",
+                    info.output, info.resolution, hz
+                )],
             )?;
         } else {
             run(
@@ -127,7 +133,9 @@ mod parse {
     /// `Output: 1 eDP-1 enabled connected priority 1 Panel Modes: 0:2560x1600@240*! 1:2560x1600@60 ...`
     pub fn kscreen(out: &str) -> Option<DisplayInfo> {
         let clean = strip_ansi(out);
-        let line = clean.lines().find(|l| l.contains("Output:") && l.contains("eDP"))?;
+        let line = clean
+            .lines()
+            .find(|l| l.contains("Output:") && l.contains("eDP"))?;
         let output = line.split_whitespace().nth(2)?.to_string();
         let modes = line.split("Modes:").nth(1)?;
         let mut current = (String::new(), 0u32);
@@ -136,8 +144,12 @@ mod parse {
             // token: "0:2560x1600@240*!" (current marked with *).
             // Non-mode tokens (e.g. the trailing "Geometry: ...") are skipped.
             let spec = token.split(':').next_back().unwrap_or(token);
-            let Some((res, rest)) = spec.split_once('@') else { continue };
-            let Ok(hz) = rest.trim_end_matches(['*', '!']).parse::<f32>() else { continue };
+            let Some((res, rest)) = spec.split_once('@') else {
+                continue;
+            };
+            let Ok(hz) = rest.trim_end_matches(['*', '!']).parse::<f32>() else {
+                continue;
+            };
             let hz = hz.round() as u32;
             if rest.contains('*') {
                 current = (res.to_string(), hz);

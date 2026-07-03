@@ -23,14 +23,20 @@ struct UiSettings {
 
 impl Default for UiSettings {
     fn default() -> Self {
-        UiSettings { autostart: false, close_to_tray: true }
+        UiSettings {
+            autostart: false,
+            close_to_tray: true,
+        }
     }
 }
 
 struct Ui(Mutex<UiSettings>);
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("settings.json"))
 }
 
 fn load_settings(app: &AppHandle) -> UiSettings {
@@ -57,7 +63,13 @@ async fn set_perf_mode(
     cpu_boost: Option<Boost>,
     gpu_boost: Option<Boost>,
 ) -> Result<Value, String> {
-    client.request(Command::SetPerfMode { perf_mode, cpu_boost, gpu_boost }).await
+    client
+        .request(Command::SetPerfMode {
+            perf_mode,
+            cpu_boost,
+            gpu_boost,
+        })
+        .await
 }
 
 #[tauri::command]
@@ -106,7 +118,11 @@ fn set_ui_settings(app: AppHandle, ui: State<'_, Ui>, settings: UiSettings) -> R
             .map_err(|e| e.to_string())?;
     }
     let autolaunch = app.autolaunch();
-    let result = if settings.autostart { autolaunch.enable() } else { autolaunch.disable() };
+    let result = if settings.autostart {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    };
     result.map_err(|e| format!("autostart: {e}"))
 }
 
@@ -200,7 +216,13 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let close_to_tray = window.app_handle().state::<Ui>().0.lock().unwrap().close_to_tray;
+                let close_to_tray = window
+                    .app_handle()
+                    .state::<Ui>()
+                    .0
+                    .lock()
+                    .unwrap()
+                    .close_to_tray;
                 if close_to_tray {
                     api.prevent_close();
                     let _ = window.hide();

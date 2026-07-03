@@ -93,7 +93,9 @@ pub enum Command {
         fan: FanMode,
     },
     /// Switch the active GPU (applies at next logout/reboot).
-    SetGpuMode { gpu_mode: GpuMode },
+    SetGpuMode {
+        gpu_mode: GpuMode,
+    },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
@@ -120,7 +122,12 @@ impl Response {
     }
 
     pub fn err(id: u64, msg: impl Into<String>) -> Response {
-        Response { id, ok: false, data: None, error: Some(msg.into()) }
+        Response {
+            id,
+            ok: false,
+            data: None,
+            error: Some(msg.into()),
+        }
     }
 }
 
@@ -175,7 +182,9 @@ mod tests {
             serde_json::from_str(r#"{"id":3,"cmd":"set_fan","mode":"manual","rpm":4400}"#).unwrap();
         assert_eq!(r.id, 3);
         match r.cmd {
-            Command::SetFan { fan: FanMode::Manual { rpm } } => assert_eq!(rpm, 4400),
+            Command::SetFan {
+                fan: FanMode::Manual { rpm },
+            } => assert_eq!(rpm, 4400),
             other => panic!("bad parse: {other:?}"),
         }
 
@@ -184,7 +193,11 @@ mod tests {
         )
         .unwrap();
         match r.cmd {
-            Command::SetPerfMode { perf_mode, cpu_boost, gpu_boost } => {
+            Command::SetPerfMode {
+                perf_mode,
+                cpu_boost,
+                gpu_boost,
+            } => {
                 assert_eq!(perf_mode, PerfMode::Custom);
                 assert_eq!(cpu_boost, Some(Boost::Boost));
                 assert_eq!(gpu_boost, None);

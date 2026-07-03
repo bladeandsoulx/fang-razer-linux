@@ -82,7 +82,11 @@ mod backend {
     }
 
     fn unsupported(hint: &str) -> ColorInfo {
-        ColorInfo { supported: false, hint: hint.into(), ..Default::default() }
+        ColorInfo {
+            supported: false,
+            hint: hint.into(),
+            ..Default::default()
+        }
     }
 
     /// (device object path, installed profile map id→objpath)
@@ -109,7 +113,13 @@ mod backend {
             Ok(out) => parse::current_profile(&out),
             Err(_) => (None, "unknown".to_string()),
         };
-        ColorInfo { supported: true, current, current_name, available, hint: String::new() }
+        ColorInfo {
+            supported: true,
+            current,
+            current_name,
+            available,
+            hint: String::new(),
+        }
     }
 
     pub fn set(profile: &str) -> Result<ColorInfo, String> {
@@ -163,7 +173,9 @@ mod parse {
             if let Some(p) = line.strip_prefix("Object Path:") {
                 path = Some(p.trim().to_string());
             } else if let Some(f) = line.strip_prefix("Filename:") {
-                let Some(objpath) = path.clone() else { continue };
+                let Some(objpath) = path.clone() else {
+                    continue;
+                };
                 if let Some(id) = classify(f.trim()) {
                     if !found.iter().any(|(i, _)| i == id) {
                         found.push((id.to_string(), objpath));
