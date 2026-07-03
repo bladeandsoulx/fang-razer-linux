@@ -1,8 +1,8 @@
 <script>
   import ModeCard from '../lib/components/ModeCard.svelte';
   import Icon from '../lib/components/Icon.svelte';
-  import { status, display } from '../lib/stores.js';
-  import { setGpuMode, setRefreshRate } from '../lib/bridge.js';
+  import { status, display, color } from '../lib/stores.js';
+  import { setGpuMode, setRefreshRate, setColorProfile } from '../lib/bridge.js';
 
   const GPU_MODES = [
     {
@@ -25,8 +25,16 @@
     }
   ];
 
+  const COLOR_PROFILES = {
+    native: { label: 'Native', blurb: 'Full panel gamut, no remapping — as factory calibrated.' },
+    srgb: { label: 'sRGB', blurb: 'Web and everyday content; the safe default.' },
+    adobe_rgb: { label: 'Adobe RGB', blurb: 'Print and photography workflows.' },
+    rec709: { label: 'Rec. 709', blurb: 'Video editing and grading (HD standard).' }
+  };
+
   let gpuError = '';
   let rateError = '';
+  let colorError = '';
   let busyHz = null;
 
   $: gpuSupported = $status?.gpu_mode != null;
@@ -49,6 +57,15 @@
       rateError = String(err);
     } finally {
       busyHz = null;
+    }
+  }
+
+  async function pickColor(profile) {
+    colorError = '';
+    try {
+      await setColorProfile(profile);
+    } catch (err) {
+      colorError = String(err);
     }
   }
 </script>
@@ -114,6 +131,35 @@
   {/if}
   {#if rateError}
     <div class="flag error"><Icon name="warn" size={14} /> {rateError}</div>
+  {/if}
+</div>
+
+<div class="section-label card-label second">Color profile</div>
+
+<div class="card rise pad">
+  {#if $color?.supported}
+    <div class="seg color-seg">
+      {#each $color.available as id}
+        <button class:on={$color.current === id} on:click={() => pickColor(id)}>
+          {COLOR_PROFILES[id]?.label ?? id}
+        </button>
+      {/each}
+    </div>
+    <p class="dim note">
+      {#if $color.current && COLOR_PROFILES[$color.current]}
+        {COLOR_PROFILES[$color.current].blurb}
+      {:else}
+        Active profile: {$color.current_name} (set outside Fang).
+      {/if}
+    </p>
+  {:else if $color}
+    <p>Color profile switching isn't available here.</p>
+    <p class="dim">{$color.hint}</p>
+  {:else}
+    <p class="dim">Reading color profiles…</p>
+  {/if}
+  {#if colorError}
+    <div class="flag error"><Icon name="warn" size={14} /> {colorError}</div>
   {/if}
 </div>
 
@@ -231,5 +277,9 @@
   .note {
     font-size: 11.5px;
     margin-top: 12px;
+  }
+
+  .color-seg button {
+    flex: 1;
   }
 </style>

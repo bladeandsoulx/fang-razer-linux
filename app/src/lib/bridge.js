@@ -2,7 +2,7 @@
 // built-in simulator with the same wire shapes, so the UI can be developed
 // and demoed without the daemon.
 
-import { connected, display, status, telemetry, uiSettings } from './stores.js';
+import { color, connected, display, status, telemetry, uiSettings } from './stores.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -29,6 +29,7 @@ async function initTauri() {
     if (up) status.set(await invoke('get_status'));
     uiSettings.set(await invoke('get_ui_settings'));
     display.set(await invoke('get_display'));
+    color.set(await invoke('get_color'));
   } catch (e) {
     console.error('bridge init', e);
   }
@@ -71,6 +72,14 @@ export async function setRefreshRate(hz) {
   }
 }
 
+export async function setColorProfile(profile) {
+  if (invoke) {
+    color.set(await invoke('set_color_profile', { profile }));
+  } else {
+    sim.setColorProfile(profile);
+  }
+}
+
 // ---------------------------------------------------------------- simulator
 
 const sim = {
@@ -96,6 +105,13 @@ const sim = {
     resolution: '2560x1600',
     current_hz: 240,
     available_hz: [60, 120, 240],
+    hint: ''
+  },
+  colorInfo: {
+    supported: true,
+    current: 'native',
+    current_name: 'Native (EDID)',
+    available: ['native', 'srgb', 'adobe_rgb', 'rec709'],
     hint: ''
   },
   cpu: 52,
@@ -169,6 +185,17 @@ const sim = {
   setRefreshRate(hz) {
     this.displayInfo = { ...this.displayInfo, current_hz: hz };
     display.set(this.displayInfo);
+  },
+
+  setColorProfile(profile) {
+    const names = {
+      native: 'Native (EDID)',
+      srgb: 'sRGB',
+      adobe_rgb: 'Adobe RGB (1998)',
+      rec709: 'Rec. 709'
+    };
+    this.colorInfo = { ...this.colorInfo, current: profile, current_name: names[profile] };
+    color.set(this.colorInfo);
   }
 };
 
@@ -176,6 +203,7 @@ function initSim() {
   connected.set(true);
   uiSettings.set({ autostart: false, close_to_tray: true });
   display.set(sim.displayInfo);
+  color.set(sim.colorInfo);
   sim.push();
   sim.tick();
   setInterval(() => sim.tick(), 1000);

@@ -13,6 +13,8 @@ Performance modes, fan control and live thermals — no Windows required.
   next logout/reboot)
 - ⚡ **Refresh rate** — switch the internal panel's Hz instantly
   (kscreen-doctor or xrandr; GNOME Wayland users: Settings → Displays)
+- 🎨 **Color profiles** — Native / sRGB / Adobe RGB / Rec. 709 via colord's
+  standard ICC profiles (applied by GNOME/KDE color management)
 - 📊 **Live dashboard** — CPU/GPU temperatures, fan RPM, 90-second history
 - 🖥 **Tray + autostart** — quick mode switching from the system tray
 - 🔁 Settings persist and are re-applied after reboot and suspend/resume

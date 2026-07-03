@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod client;
+mod color;
 mod display;
 
 use client::Client;
@@ -72,6 +73,16 @@ async fn set_gpu_mode(client: State<'_, Client>, gpu_mode: GpuMode) -> Result<Va
 #[tauri::command]
 fn get_display() -> display::DisplayInfo {
     display::get()
+}
+
+#[tauri::command]
+fn get_color() -> color::ColorInfo {
+    color::get()
+}
+
+#[tauri::command]
+fn set_color_profile(profile: String) -> Result<color::ColorInfo, String> {
+    color::set(&profile)
 }
 
 #[tauri::command]
@@ -204,6 +215,8 @@ fn main() {
             set_gpu_mode,
             get_display,
             set_refresh_rate,
+            get_color,
+            set_color_profile,
             get_ui_settings,
             set_ui_settings
         ])

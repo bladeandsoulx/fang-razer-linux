@@ -81,6 +81,14 @@ envelope, but back off if you're uncomfortable.
   Wayland the screen shows a pointer to Settings → Displays instead (mutter
   API not wired up in v1).
 
+## 6c. Color profile
+
+Switch Native → sRGB on the GPU & Display screen; saturated reds/greens
+should visibly desaturate on the Blade's wide-gamut panel (compare a vivid
+wallpaper). `colormgr get-devices-by-kind display` shows the default profile
+change. Requires colord (preinstalled on Ubuntu desktop); bare X11 WMs also
+need `xiccd` running for profiles to take effect.
+
 ## 7. Persistence
 
 - `sudo systemctl restart fangd` → previous mode/fan settings re-applied

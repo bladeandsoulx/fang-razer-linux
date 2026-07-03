@@ -5,6 +5,7 @@ export const status = writable(null);
 export const telemetry = writable(null);
 export const uiSettings = writable({ autostart: false, close_to_tray: true });
 export const display = writable(null);
+export const color = writable(null);
 
 const HISTORY = 90; // seconds of sparkline
 
