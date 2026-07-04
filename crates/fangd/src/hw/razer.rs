@@ -2,7 +2,7 @@
 
 use super::{sensors::Sensors, Hw, ModelInfo, Sample};
 use crate::state::AppliedState;
-use fang_protocol::api::{FanMode, PerfMode};
+use fang_protocol::api::{Boost, FanMode, PerfMode};
 use fang_protocol::models;
 use fang_protocol::packet::{self, Report, Zone, RAZER_VID, REPORT_LEN, ZONES};
 use hidapi::{HidApi, HidDevice};
@@ -109,24 +109,34 @@ impl Hw for RazerHw {
     fn apply(&mut self, state: &AppliedState) -> Result<(), String> {
         let manual = matches!(state.fan, FanMode::Manual { .. });
         let mode = state.perf_mode.to_ec();
+        // Silent maps to the EC's Custom mode with both boosts pinned Low:
+        // the reduced power budget is what keeps the fans quiet, while the
+        // EC's automatic fan curve (and its thermal failsafes) stay active.
+        let boosts = match state.perf_mode {
+            PerfMode::Silent => Some((Boost::Low, Boost::Low)),
+            PerfMode::Custom => {
+                let cpu = if self.model.has_cpu_boost_oc {
+                    state.cpu_boost
+                } else {
+                    // Cap at High on models without the overclock level.
+                    match state.cpu_boost {
+                        Boost::Boost => Boost::High,
+                        b => b,
+                    }
+                };
+                Some((cpu, state.gpu_boost))
+            }
+            _ => None,
+        };
         for zone in ZONES {
             self.command(packet::set_power_mode(zone, mode, manual))?;
             if let FanMode::Manual { rpm } = state.fan {
                 self.command(packet::set_fan_rpm(zone, self.clamp_rpm(rpm)))?;
             }
         }
-        if state.perf_mode == PerfMode::Custom {
-            let cpu = if self.model.has_cpu_boost_oc {
-                state.cpu_boost
-            } else {
-                // Cap at High on models without the overclock level.
-                match state.cpu_boost {
-                    fang_protocol::api::Boost::Boost => fang_protocol::api::Boost::High,
-                    b => b,
-                }
-            };
+        if let Some((cpu, gpu)) = boosts {
             self.command(packet::set_cpu_boost(cpu.to_ec()))?;
-            self.command(packet::set_gpu_boost(state.gpu_boost.to_ec()))?;
+            self.command(packet::set_gpu_boost(gpu.to_ec()))?;
         }
         Ok(())
     }

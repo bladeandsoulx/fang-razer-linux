@@ -22,7 +22,11 @@ impl PerfMode {
             PerfMode::Balanced => 0,
             PerfMode::Gaming => 1,
             PerfMode::Creator => 2,
-            PerfMode::Silent => 3,
+            // The EC has no silent mode: razer-laptop-control defines only
+            // 0..=2 and 4, and sending the undefined 3 puts at least the
+            // pid 02b8 EC into a failsafe with fans at max. Silent rides on
+            // Custom; the hardware backend pins both boosts to Low.
+            PerfMode::Silent => 4,
             PerfMode::Custom => 4,
         }
     }
@@ -227,5 +231,22 @@ mod tests {
         });
         let s = serde_json::to_string(&e).unwrap();
         assert!(s.starts_with(r#"{"event":"telemetry","data":{"#), "{s}");
+    }
+
+    #[test]
+    fn no_perf_mode_emits_the_undefined_ec_value() {
+        // 3 is not a valid EC power mode (razer-laptop-control defines only
+        // 0..=2 and 4); ECs answer it with a max-fan failsafe.
+        for m in [
+            PerfMode::Balanced,
+            PerfMode::Gaming,
+            PerfMode::Creator,
+            PerfMode::Silent,
+            PerfMode::Custom,
+        ] {
+            assert_ne!(m.to_ec(), 3, "{m:?} must not reach the EC as 3");
+        }
+        // Silent rides on Custom; the backend pins its boosts to Low.
+        assert_eq!(PerfMode::Silent.to_ec(), PerfMode::Custom.to_ec());
     }
 }
