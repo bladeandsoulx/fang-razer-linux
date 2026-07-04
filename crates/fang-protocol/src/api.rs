@@ -100,6 +100,12 @@ pub enum Command {
     SetGpuMode {
         gpu_mode: GpuMode,
     },
+    /// Battery Health Optimizer: cap charging at `threshold` percent
+    /// (50..=80, clamped) to extend battery lifespan.
+    SetBho {
+        enabled: bool,
+        threshold: u8,
+    },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
@@ -159,6 +165,11 @@ pub struct Status {
     pub fan_rpm_min: u16,
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
+    /// Model supports the Battery Health Optimizer charge limiter.
+    pub has_bho: bool,
+    pub bho_enabled: bool,
+    /// Charge cap percent (50..=80), meaningful when `bho_enabled`.
+    pub bho_threshold: u8,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a

@@ -103,6 +103,7 @@ impl Hw for RazerHw {
             fan_rpm_min: self.model.fan_rpm_min,
             fan_rpm_max: self.model.fan_rpm_max,
             has_cpu_boost_oc: self.model.has_cpu_boost_oc,
+            has_bho: self.model.has_bho,
         }
     }
 
@@ -137,6 +138,9 @@ impl Hw for RazerHw {
         if let Some((cpu, gpu)) = boosts {
             self.command(packet::set_cpu_boost(cpu.to_ec()))?;
             self.command(packet::set_gpu_boost(gpu.to_ec()))?;
+        }
+        if self.model.has_bho {
+            self.command(packet::set_bho(state.bho_enabled, state.bho_threshold))?;
         }
         Ok(())
     }
@@ -181,6 +185,7 @@ impl Hw for MonitorOnly {
             fan_rpm_min: 0,
             fan_rpm_max: 0,
             has_cpu_boost_oc: false,
+            has_bho: false,
         }
     }
 

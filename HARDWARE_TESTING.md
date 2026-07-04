@@ -89,6 +89,14 @@ wallpaper). `colormgr get-devices-by-kind display` shows the default profile
 change. Requires colord (preinstalled on Ubuntu desktop); bare X11 WMs also
 need `xiccd` running for profiles to take effect.
 
+## 6d. Battery Health Optimizer
+
+On models with the "bho" feature (Settings shows a Battery card): enable
+the optimizer at 80%. With AC plugged and the battery above the cap,
+`cat /sys/class/power_supply/BAT*/status` should read `Not charging`
+within a couple of minutes; `journalctl -u fangd` shows no EC errors.
+Disable to resume normal charging to 100%.
+
 ## 7. Persistence
 
 - `sudo systemctl restart fangd` → previous mode/fan settings re-applied

@@ -95,7 +95,8 @@ where
                     }
                     ref cmd @ (Command::SetPerfMode { .. }
                     | Command::SetFan { .. }
-                    | Command::SetGpuMode { .. }) => {
+                    | Command::SetGpuMode { .. }
+                    | Command::SetBho { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {

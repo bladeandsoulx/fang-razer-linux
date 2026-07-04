@@ -17,6 +17,7 @@ pub struct ModelInfo {
     pub fan_rpm_min: u16,
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
+    pub has_bho: bool,
 }
 
 #[derive(Clone, Debug, Default)]

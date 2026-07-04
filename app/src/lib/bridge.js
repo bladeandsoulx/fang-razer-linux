@@ -64,6 +64,14 @@ export async function setGpuMode(gpuMode) {
   }
 }
 
+export async function setBho(enabled, threshold) {
+  if (invoke) {
+    status.set(await invoke('set_bho', { enabled, threshold }));
+  } else {
+    sim.setBho(enabled, threshold);
+  }
+}
+
 export async function setRefreshRate(hz) {
   if (invoke) {
     display.set(await invoke('set_refresh_rate', { hz }));
@@ -95,6 +103,9 @@ const sim = {
     fan_rpm_min: 2200,
     fan_rpm_max: 5000,
     has_cpu_boost_oc: true,
+    has_bho: true,
+    bho_enabled: false,
+    bho_threshold: 80,
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -179,6 +190,12 @@ const sim = {
       this.state.gpu_mode = mode;
       this.state.gpu_mode_pending = true;
     }
+    this.push();
+  },
+
+  setBho(enabled, threshold) {
+    this.state.bho_enabled = enabled;
+    this.state.bho_threshold = Math.min(80, Math.max(50, threshold));
     this.push();
   },
 

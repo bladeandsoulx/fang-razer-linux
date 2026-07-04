@@ -10,6 +10,15 @@ pub struct AppliedState {
     pub cpu_boost: Boost,
     pub gpu_boost: Boost,
     pub fan: FanMode,
+    // serde defaults keep state files written before the BHO feature loading.
+    #[serde(default)]
+    pub bho_enabled: bool,
+    #[serde(default = "default_bho_threshold")]
+    pub bho_threshold: u8,
+}
+
+fn default_bho_threshold() -> u8 {
+    80
 }
 
 impl Default for AppliedState {
@@ -19,6 +28,8 @@ impl Default for AppliedState {
             cpu_boost: Boost::Medium,
             gpu_boost: Boost::Medium,
             fan: FanMode::Auto,
+            bho_enabled: false,
+            bho_threshold: default_bho_threshold(),
         }
     }
 }

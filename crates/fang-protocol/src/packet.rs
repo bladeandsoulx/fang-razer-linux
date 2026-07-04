@@ -149,6 +149,19 @@ pub fn get_gpu_boost() -> Report {
     Report::new(0x0d, 0x87, &[0x00, 0x02, 0x00])
 }
 
+// ---- EC commands (class 0x07: battery) --------------------------------------
+
+/// Battery Health Optimizer (Synapse's charge limiter). One arg byte: top
+/// bit = enabled, low 7 bits = charge threshold percent (Synapse offers
+/// 50..=80). Byte layout from Razer-Control's device.rs (GPL-2.0).
+pub fn set_bho(enabled: bool, threshold: u8) -> Report {
+    Report::new(0x07, 0x12, &[((enabled as u8) << 7) | (threshold & 0x7F)])
+}
+
+pub fn get_bho() -> Report {
+    Report::new(0x07, 0x92, &[0x00])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,6 +213,25 @@ mod tests {
         assert_eq!(get_fan_rpm(Zone::Fan1).command_id, 0x81);
         assert_eq!(get_cpu_boost().command_id, 0x87);
         assert_eq!(get_gpu_boost().command_id, 0x87);
+        assert_eq!(get_bho().command_id, 0x92);
+    }
+
+    #[test]
+    fn bho_packet_bytes() {
+        // enabled at 80% -> 0x80 | 80 = 0xD0
+        let buf = set_bho(true, 80).to_feature_report();
+        assert_eq!(buf[6], 0x01, "data size");
+        assert_eq!(buf[7], 0x07, "command class");
+        assert_eq!(buf[8], 0x12, "command id");
+        assert_eq!(buf[9], 0xD0, "args[0]");
+        assert!(buf[10..89].iter().all(|&b| b == 0));
+        // 0x1F ^ 0x01 ^ 0x07 ^ 0x12 ^ 0xD0
+        assert_eq!(buf[89], 0xDB, "crc");
+
+        // disabled keeps the threshold in the low bits
+        assert_eq!(set_bho(false, 65).args[0], 65);
+        // threshold can never bleed into the enable bit
+        assert_eq!(set_bho(false, 0xFF).args[0], 0x7F);
     }
 
     #[test]

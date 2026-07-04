@@ -83,6 +83,11 @@ async fn set_gpu_mode(client: State<'_, Client>, gpu_mode: GpuMode) -> Result<Va
 }
 
 #[tauri::command]
+async fn set_bho(client: State<'_, Client>, enabled: bool, threshold: u8) -> Result<Value, String> {
+    client.request(Command::SetBho { enabled, threshold }).await
+}
+
+#[tauri::command]
 fn get_display() -> display::DisplayInfo {
     display::get()
 }
@@ -235,6 +240,7 @@ fn main() {
             set_perf_mode,
             set_fan,
             set_gpu_mode,
+            set_bho,
             get_display,
             set_refresh_rate,
             get_color,

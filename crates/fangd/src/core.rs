@@ -42,6 +42,9 @@ impl Core {
             fan_rpm_min: info.fan_rpm_min,
             fan_rpm_max: info.fan_rpm_max,
             has_cpu_boost_oc: info.has_cpu_boost_oc,
+            has_bho: info.has_bho,
+            bho_enabled: self.state.bho_enabled,
+            bho_threshold: self.state.bho_threshold,
             gpu_mode: self.gpu.current(),
             gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -93,6 +96,13 @@ impl Core {
                 // Persisted by the PRIME tool itself, not our state file.
                 self.gpu.set(*gpu_mode)?;
                 return Ok(true);
+            }
+            Command::SetBho { enabled, threshold } => {
+                if !self.hw.info().has_bho {
+                    return Err("battery health optimizer not supported on this model".into());
+                }
+                next.bho_enabled = *enabled;
+                next.bho_threshold = (*threshold).clamp(50, 80);
             }
             _ => return Ok(false),
         }

@@ -12,6 +12,8 @@ pub struct LaptopModel {
     pub fan_rpm_max: u16,
     /// Supports CPU overclock boost level (feature "boost").
     pub has_cpu_boost_oc: bool,
+    /// Supports the Battery Health Optimizer charge limiter (feature "bho").
+    pub has_bho: bool,
 }
 
 pub const MODELS: &[LaptopModel] = &[
@@ -21,6 +23,7 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_min: 2200,
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
+        has_bho: true,
     },
     // Limits and features from Razer-Control's laptops.json (GPL-2.0),
     // exercised on this hardware: modes, boosts, manual fan, telemetry.
@@ -30,6 +33,7 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_min: 2200,
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
+        has_bho: true,
     },
 ];
 
@@ -40,6 +44,7 @@ pub const FALLBACK: LaptopModel = LaptopModel {
     fan_rpm_min: 2200,
     fan_rpm_max: 5000,
     has_cpu_boost_oc: false,
+    has_bho: false,
 };
 
 pub fn by_pid(pid: u16) -> Option<&'static LaptopModel> {

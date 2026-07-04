@@ -2,10 +2,25 @@
   import Toggle from '../lib/components/Toggle.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import { status, uiSettings, connected } from '../lib/stores.js';
-  import { saveUiSettings, inTauri } from '../lib/bridge.js';
+  import { saveUiSettings, setBho, inTauri } from '../lib/bridge.js';
+
+  let slider = null; // local slider position before release
+
+  $: bhoOn = $status?.bho_enabled ?? false;
+  $: threshold = slider ?? $status?.bho_threshold ?? 80;
+  $: fill = ((threshold - 50) / 30) * 100;
 
   function save() {
     saveUiSettings($uiSettings);
+  }
+
+  function toggleBho(e) {
+    setBho(e.target.checked, threshold);
+  }
+
+  function commitThreshold(e) {
+    slider = null;
+    setBho(true, +e.target.value);
   }
 </script>
 
@@ -51,6 +66,37 @@
       </div>
     {/if}
   </div>
+
+  {#if $status?.has_bho}
+    <div class="card rise pad" style="animation-delay:90ms">
+      <span class="card-label">Battery</span>
+      <Toggle
+        checked={bhoOn}
+        on:change={toggleBho}
+        label="Battery Health Optimizer"
+        hint="Cap charging below 100% to extend the battery's lifespan"
+      />
+      <div class="limit" class:off={!bhoOn}>
+        <div class="cap mono">{threshold}<em>% charge cap</em></div>
+        <input
+          type="range"
+          min="50"
+          max="80"
+          step="5"
+          value={threshold}
+          disabled={!bhoOn}
+          style="--fill:{fill}%"
+          on:input={(e) => (slider = +e.target.value)}
+          on:change={commitThreshold}
+        />
+        <div class="scale mono"><span>50%</span><span>65%</span><span>80%</span></div>
+      </div>
+      <p class="hint">
+        Applied by the EC and re-applied after reboot. Charging pauses at the
+        cap; already-charged batteries drain to it slowly while plugged in.
+      </p>
+    </div>
+  {/if}
 
   <div class="card rise pad about" style="animation-delay:120ms">
     <span class="card-label">About</span>
@@ -132,6 +178,45 @@
     background: rgba(255, 180, 84, 0.08);
     color: var(--amber);
     border: 1px solid rgba(255, 180, 84, 0.25);
+  }
+
+  .limit {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    transition: opacity 0.25s ease;
+  }
+
+  .limit.off {
+    opacity: 0.45;
+  }
+
+  .cap {
+    font-size: 20px;
+    color: var(--ink);
+  }
+
+  .cap em {
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--ink-dim);
+    margin-left: 7px;
+  }
+
+  .scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--ink-faint);
+  }
+
+  .hint {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-dim);
+    margin-top: 12px;
   }
 
   .about {
