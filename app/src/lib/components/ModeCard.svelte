@@ -42,7 +42,9 @@
 
   .mode.active {
     border-color: transparent;
-    animation: breathe 3.2s ease-in-out infinite;
+    /* Static glow: animating box-shadow can't be composited and kept the
+       card re-rasterizing every frame, forever. */
+    box-shadow: 0 0 24px rgba(68, 214, 44, 0.26), inset 0 0 0 1px rgba(68, 214, 44, 0.7);
   }
 
   .icon {

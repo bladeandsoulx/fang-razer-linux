@@ -172,13 +172,6 @@
   .led.ok {
     background: var(--green);
     box-shadow: 0 0 8px var(--green);
-    animation: ledpulse 2.4s ease-in-out infinite;
-  }
-
-  @keyframes ledpulse {
-    50% {
-      opacity: 0.55;
-    }
   }
 
   .who {

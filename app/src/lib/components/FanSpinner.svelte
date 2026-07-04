@@ -1,6 +1,9 @@
 <script>
   // Fan rotor whose angular velocity tracks the real RPM (scaled down so
-  // blades stay readable). Pure rAF; no CSS animation restarts.
+  // blades stay readable). Pure rAF; no CSS animation restarts. Repaints
+  // are throttled to ~30 fps and skipped entirely while the fan is parked
+  // or the window hidden — an unthrottled loop repaints at panel refresh
+  // (240 Hz here) and keeps the iGPU busy around the clock.
   import { onMount } from 'svelte';
 
   export let rpm = 0;
@@ -12,13 +15,21 @@
   onMount(() => {
     let raf;
     let prev = performance.now();
+    let lastDraw = prev;
     const loop = (now) => {
+      raf = requestAnimationFrame(loop);
       const dt = (now - prev) / 1000;
       prev = now;
+      if (rpm <= 0 || document.hidden) {
+        return;
+      }
       // visual speed: 1/12th of real revs, capped for readability
       angle = (angle + Math.min(rpm, 6000) / 12 / 60 * 360 * dt) % 360;
+      if (now - lastDraw < 33) {
+        return;
+      }
+      lastDraw = now;
       if (el) el.style.transform = `rotate(${angle}deg)`;
-      raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
@@ -36,9 +47,11 @@
         transform="rotate({i * 40} 50 50)"
       />
     {/each}
-    <circle cx="50" cy="50" r="9" class="hub" />
-    <circle cx="50" cy="50" r="3.2" class="hub-dot" />
   </g>
+  <!-- Hub is rotationally symmetric; kept outside the rotating group so its
+       drop-shadow filter isn't re-rasterized on every frame. -->
+  <circle cx="50" cy="50" r="9" class="hub" />
+  <circle cx="50" cy="50" r="3.2" class="hub-dot" />
 </svg>
 
 <style>

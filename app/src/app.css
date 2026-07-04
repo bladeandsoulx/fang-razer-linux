@@ -156,13 +156,3 @@ input[type='range']:disabled {
 .rise {
   animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-
-@keyframes breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 18px rgba(68, 214, 44, 0.18), inset 0 0 0 1px rgba(68, 214, 44, 0.55);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(68, 214, 44, 0.34), inset 0 0 0 1px rgba(68, 214, 44, 0.85);
-  }
-}
