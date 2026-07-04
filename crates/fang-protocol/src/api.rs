@@ -165,6 +165,9 @@ pub struct Status {
     pub fan_rpm_min: u16,
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
+    /// Model's EC defines power mode 2 (Creator); the UI hides the mode and
+    /// the daemon rejects it otherwise.
+    pub has_creator_mode: bool,
     /// Model supports the Battery Health Optimizer charge limiter.
     pub has_bho: bool,
     pub bho_enabled: bool,

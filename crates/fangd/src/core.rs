@@ -42,6 +42,7 @@ impl Core {
             fan_rpm_min: info.fan_rpm_min,
             fan_rpm_max: info.fan_rpm_max,
             has_cpu_boost_oc: info.has_cpu_boost_oc,
+            has_creator_mode: info.has_creator_mode,
             has_bho: info.has_bho,
             bho_enabled: self.state.bho_enabled,
             bho_threshold: self.state.bho_threshold,
@@ -72,6 +73,13 @@ impl Core {
                 cpu_boost,
                 gpu_boost,
             } => {
+                if *perf_mode == fang_protocol::api::PerfMode::Creator
+                    && !self.hw.info().has_creator_mode
+                {
+                    // EC mode 2 is undefined on most models; sending an
+                    // undefined mode trips EC failsafes (max fans).
+                    return Err("creator mode is not supported on this model".into());
+                }
                 next.perf_mode = *perf_mode;
                 if let Some(b) = cpu_boost {
                     next.cpu_boost = *b;

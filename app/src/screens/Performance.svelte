@@ -15,6 +15,9 @@
   const GPU_LEVELS = ['low', 'medium', 'high'];
 
   $: cpuLevels = $status?.has_cpu_boost_oc ? CPU_LEVELS : CPU_LEVELS.slice(0, 3);
+  // Most ECs don't define Creator (power mode 2); hide it unless the model
+  // profile says otherwise — the daemon rejects it anyway.
+  $: modes = $status?.has_creator_mode === false ? MODES.filter((m) => m.mode !== 'creator') : MODES;
 
   function select(e) {
     const mode = e.detail;
@@ -31,7 +34,7 @@
 </script>
 
 <div class="cards">
-  {#each MODES as m, i}
+  {#each modes as m, i (m.mode)}
     <ModeCard {...m} active={$status?.perf_mode === m.mode} delay={i * 45} on:select={select} />
   {/each}
 </div>

@@ -62,6 +62,7 @@ impl Hw for MockHw {
             fan_rpm_max: 5000,
             has_cpu_boost_oc: true,
             has_bho: true,
+            has_creator_mode: true,
         }
     }
 

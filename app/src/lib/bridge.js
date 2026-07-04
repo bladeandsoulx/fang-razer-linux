@@ -103,6 +103,7 @@ const sim = {
     fan_rpm_min: 2200,
     fan_rpm_max: 5000,
     has_cpu_boost_oc: true,
+    has_creator_mode: true,
     has_bho: true,
     bho_enabled: false,
     bho_threshold: 80,

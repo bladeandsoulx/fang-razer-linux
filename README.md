@@ -53,11 +53,18 @@ service, builds the app `.deb`, and adds you to the `fang` group
 
 ## Supported hardware
 
-| Model | USB PID | Status |
-|---|---|---|
-| Razer Blade 18 (2023) | `02a0` | ✅ verified profile |
-| Razer Blade 18 (2024) | `02b8` | ✅ verified profile |
-| Other Razer Blades | any `1532:*` | ⚠️ works with conservative fan limits ("unverified" badge) |
+Fang recognizes **48 Blade models** (2015–2025) with per-model fan limits and
+feature flags (CPU overclock boost, battery charge limiter, Creator mode)
+imported from [Razer-Control](https://github.com/Rintastic247/Razer-Control)'s
+device table (GPL-2.0). See
+[`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs)
+for the full list.
+
+| Profile source | Status |
+|---|---|
+| Blade 18 2023 (`02a0`), Blade 18 2024 (`02b8`) | ✅ exercised end-to-end on hardware by Fang |
+| 46 further models | ✅ limits from Razer-Control's table (field-tested by that project) |
+| Unknown `1532:*` PIDs | ⚠️ conservative fan limits, "unverified" badge |
 
 Adding a model is a one-line entry in
 [`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs) —
