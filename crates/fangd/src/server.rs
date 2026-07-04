@@ -46,6 +46,8 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
         let telemetry = Telemetry {
             cpu_temp_c: s.cpu_temp_c,
             gpu_temp_c: s.gpu_temp_c,
+            cpu_power_w: s.cpu_power_w,
+            gpu_power_w: s.gpu_power_w,
             fan_rpm: s.fan_rpm,
             ts_ms: now
                 .duration_since(UNIX_EPOCH)
@@ -96,7 +98,8 @@ where
                     ref cmd @ (Command::SetPerfMode { .. }
                     | Command::SetFan { .. }
                     | Command::SetGpuMode { .. }
-                    | Command::SetBho { .. }) => {
+                    | Command::SetBho { .. }
+                    | Command::SetLighting { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {

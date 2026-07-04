@@ -46,6 +46,10 @@ impl Core {
             has_bho: info.has_bho,
             bho_enabled: self.state.bho_enabled,
             bho_threshold: self.state.bho_threshold,
+            has_logo: info.has_logo,
+            kbd_brightness: self.state.kbd_brightness,
+            kbd_effect: self.state.kbd_effect,
+            logo_led: self.state.logo_led,
             gpu_mode: self.gpu.current(),
             gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -111,6 +115,24 @@ impl Core {
                 }
                 next.bho_enabled = *enabled;
                 next.bho_threshold = (*threshold).clamp(50, 80);
+            }
+            Command::SetLighting {
+                brightness,
+                kbd_effect,
+                logo_led,
+            } => {
+                if let Some(b) = brightness {
+                    next.kbd_brightness = (*b).min(100);
+                }
+                if let Some(e) = kbd_effect {
+                    next.kbd_effect = *e;
+                }
+                if let Some(l) = logo_led {
+                    if !self.hw.info().has_logo {
+                        return Err("no logo LED on this model".into());
+                    }
+                    next.logo_led = *l;
+                }
             }
             _ => return Ok(false),
         }

@@ -149,6 +149,52 @@ pub fn get_gpu_boost() -> Report {
     Report::new(0x0d, 0x87, &[0x00, 0x02, 0x00])
 }
 
+// ---- EC commands (class 0x03: lighting) -------------------------------------
+
+const VARSTORE: u8 = 0x01;
+const LOGO_LED: u8 = 0x04;
+const BACKLIGHT_LED: u8 = 0x05;
+
+/// Keyboard hardware effect ids (arg 0 of [`set_kbd_effect`]). Only the ids
+/// the reference implementation actively exercises are exposed.
+pub mod kbd_effect {
+    pub const OFF: u8 = 0x00;
+    /// param: direction (1 = left-to-right, 2 = right-to-left)
+    pub const WAVE: u8 = 0x01;
+    pub const SPECTRUM: u8 = 0x04;
+    /// params: r, g, b
+    pub const STATIC: u8 = 0x06;
+}
+
+/// Keyboard backlight brightness, 0..=255.
+pub fn set_brightness(value: u8) -> Report {
+    Report::new(0x03, 0x03, &[VARSTORE, BACKLIGHT_LED, value])
+}
+
+pub fn get_brightness() -> Report {
+    Report::new(0x03, 0x83, &[VARSTORE, BACKLIGHT_LED, 0x00])
+}
+
+/// Logo LED on/off. When turning on, send [`set_logo_effect`] first.
+pub fn set_logo_state(on: bool) -> Report {
+    Report::new(0x03, 0x00, &[VARSTORE, LOGO_LED, on as u8])
+}
+
+/// Logo LED effect: 0x00 static, 0x02 breathing.
+pub fn set_logo_effect(effect: u8) -> Report {
+    Report::new(0x03, 0x02, &[VARSTORE, LOGO_LED, effect])
+}
+
+/// Keyboard hardware effect. The reference implementation always declares
+/// the full 80-byte args payload for this command, so mirror that.
+pub fn set_kbd_effect(effect_id: u8, params: &[u8]) -> Report {
+    debug_assert!(params.len() < ARGS_LEN);
+    let mut args = [0u8; ARGS_LEN];
+    args[0] = effect_id;
+    args[1..1 + params.len()].copy_from_slice(params);
+    Report::new(0x03, 0x0a, &args)
+}
+
 // ---- EC commands (class 0x07: battery) --------------------------------------
 
 /// Battery Health Optimizer (Synapse's charge limiter). One arg byte: top
@@ -214,6 +260,28 @@ mod tests {
         assert_eq!(get_cpu_boost().command_id, 0x87);
         assert_eq!(get_gpu_boost().command_id, 0x87);
         assert_eq!(get_bho().command_id, 0x92);
+    }
+
+    #[test]
+    fn lighting_packet_bytes() {
+        let buf = set_brightness(153).to_feature_report();
+        assert_eq!(&buf[6..9], &[0x03, 0x03, 0x03], "size/class/id");
+        assert_eq!(&buf[9..12], &[0x01, 0x05, 153], "varstore/backlight/value");
+
+        let buf = set_logo_state(true).to_feature_report();
+        assert_eq!(&buf[6..9], &[0x03, 0x03, 0x00]);
+        assert_eq!(&buf[9..12], &[0x01, 0x04, 0x01]);
+
+        let buf = set_logo_effect(0x02).to_feature_report();
+        assert_eq!(&buf[6..9], &[0x03, 0x03, 0x02]);
+        assert_eq!(&buf[9..12], &[0x01, 0x04, 0x02]);
+
+        // static razer green; full 80-byte payload like the reference
+        let buf = set_kbd_effect(kbd_effect::STATIC, &[0x44, 0xD6, 0x2C]).to_feature_report();
+        assert_eq!(buf[6], 80, "data size");
+        assert_eq!(&buf[7..9], &[0x03, 0x0a]);
+        assert_eq!(&buf[9..13], &[0x06, 0x44, 0xD6, 0x2C]);
+        assert!(buf[13..89].iter().all(|&b| b == 0));
     }
 
     #[test]

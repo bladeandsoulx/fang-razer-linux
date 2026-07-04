@@ -61,6 +61,26 @@ pub enum FanMode {
     Manual { rpm: u16 },
 }
 
+/// Logo LED behaviour (models with the "logo" feature).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogoMode {
+    Off,
+    Static,
+    Breathing,
+}
+
+/// Keyboard backlight hardware effect. Only effects the reference
+/// implementation exercises on real ECs are exposed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "effect", rename_all = "snake_case")]
+pub enum KbdEffect {
+    Off,
+    Static { r: u8, g: u8, b: u8 },
+    Spectrum,
+    Wave,
+}
+
 /// Which GPU drives the system (the Linux take on Synapse's "GPU mode" /
 /// Advanced Optimus). Switching takes effect at the next logout/reboot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,6 +125,16 @@ pub enum Command {
     SetBho {
         enabled: bool,
         threshold: u8,
+    },
+    /// Lighting; omitted fields keep their current value.
+    SetLighting {
+        /// Keyboard backlight brightness percent (0..=100).
+        #[serde(default)]
+        brightness: Option<u8>,
+        #[serde(default)]
+        kbd_effect: Option<KbdEffect>,
+        #[serde(default)]
+        logo_led: Option<LogoMode>,
     },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
@@ -173,6 +203,12 @@ pub struct Status {
     pub bho_enabled: bool,
     /// Charge cap percent (50..=80), meaningful when `bho_enabled`.
     pub bho_threshold: u8,
+    /// Model has a lid logo LED.
+    pub has_logo: bool,
+    /// Keyboard backlight brightness percent (0..=100).
+    pub kbd_brightness: u8,
+    pub kbd_effect: KbdEffect,
+    pub logo_led: LogoMode,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a
@@ -185,6 +221,12 @@ pub struct Status {
 pub struct Telemetry {
     pub cpu_temp_c: Option<f32>,
     pub gpu_temp_c: Option<f32>,
+    /// CPU package power draw in watts (RAPL), when readable.
+    #[serde(default)]
+    pub cpu_power_w: Option<f32>,
+    /// GPU power draw in watts (NVML), when the GPU is awake.
+    #[serde(default)]
+    pub gpu_power_w: Option<f32>,
     /// Measured RPM per fan (empty when unreadable).
     pub fan_rpm: Vec<u32>,
     pub ts_ms: u64,
@@ -240,6 +282,8 @@ mod tests {
         let e = Event::Telemetry(Telemetry {
             cpu_temp_c: Some(61.5),
             gpu_temp_c: None,
+            cpu_power_w: Some(28.4),
+            gpu_power_w: None,
             fan_rpm: vec![2300, 2280],
             ts_ms: 12,
         });

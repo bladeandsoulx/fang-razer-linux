@@ -1,7 +1,18 @@
-//! Temperature sources on Linux: hwmon for the CPU package, NVML for the GPU.
+//! Temperature and power sources on Linux: hwmon for the CPU package
+//! temperature, RAPL (powercap) for CPU package power, NVML for the GPU.
 
 use std::fs;
 use std::path::PathBuf;
+use std::time::Instant;
+
+/// One tick of sensor readings.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Readings {
+    pub cpu_temp_c: Option<f32>,
+    pub gpu_temp_c: Option<f32>,
+    pub cpu_power_w: Option<f32>,
+    pub gpu_power_w: Option<f32>,
+}
 
 pub struct Sensors {
     cpu_temp_file: Option<PathBuf>,
@@ -10,6 +21,63 @@ pub struct Sensors {
     // livelock inside the NVIDIA driver and wedge the whole daemon.
     nvml: Option<nvml_wrapper::Nvml>,
     nvidia_pm_dir: Option<PathBuf>,
+    rapl: Option<Rapl>,
+}
+
+/// CPU package power via the RAPL energy counter (root-readable). Power is
+/// the energy delta between consecutive samples.
+struct Rapl {
+    energy_file: PathBuf,
+    max_energy_uj: u64,
+    last: Option<(u64, Instant)>,
+}
+
+impl Rapl {
+    fn discover() -> Option<Rapl> {
+        for entry in fs::read_dir("/sys/class/powercap").ok()?.flatten() {
+            let dir = entry.path();
+            // Prefer the MSR-backed zone; skip the duplicate -mmio zone.
+            if dir.file_name().is_some_and(|n| n.to_string_lossy().contains("mmio")) {
+                continue;
+            }
+            let name = fs::read_to_string(dir.join("name")).unwrap_or_default();
+            if name.trim() == "package-0" {
+                let max_energy_uj = fs::read_to_string(dir.join("max_energy_range_uj"))
+                    .ok()?
+                    .trim()
+                    .parse()
+                    .ok()?;
+                return Some(Rapl {
+                    energy_file: dir.join("energy_uj"),
+                    max_energy_uj,
+                    last: None,
+                });
+            }
+        }
+        None
+    }
+
+    fn read_watts(&mut self) -> Option<f32> {
+        let uj: u64 = fs::read_to_string(&self.energy_file)
+            .ok()?
+            .trim()
+            .parse()
+            .ok()?;
+        let now = Instant::now();
+        let prev = self.last.replace((uj, now));
+        let (prev_uj, prev_t) = prev?;
+        let dt = now.duration_since(prev_t).as_secs_f64();
+        if dt <= 0.0 {
+            return None;
+        }
+        // The counter wraps at max_energy_range_uj.
+        let delta = if uj >= prev_uj {
+            uj - prev_uj
+        } else {
+            self.max_energy_uj - prev_uj + uj
+        };
+        Some((delta as f64 / dt / 1e6) as f32)
+    }
 }
 
 impl Sensors {
@@ -33,43 +101,57 @@ impl Sensors {
             cpu_temp_file,
             nvml,
             nvidia_pm_dir: find_nvidia_pm_dir(),
+            rapl: Rapl::discover(),
         }
     }
 
-    pub fn temps(&self) -> (Option<f32>, Option<f32>) {
-        let cpu = self
+    pub fn read(&mut self) -> Readings {
+        let cpu_temp_c = self
             .cpu_temp_file
             .as_ref()
             .and_then(|p| fs::read_to_string(p).ok())
             .and_then(|s| s.trim().parse::<f32>().ok())
             .map(|milli| milli / 1000.0);
-        let gpu = self.nvml.as_ref().and_then(|nvml| {
-            // Gate each query on sysfs runtime-PM state (free to read, never
-            // wakes the card): querying a GPU once a second would wake it
-            // and reset its autosuspend timer, keeping it out of RTD3
-            // forever. With fine-grained power management the idle NVML
-            // session itself doesn't pin the card — only queries do.
-            if let Some(dir) = &self.nvidia_pm_dir {
-                let read = |f: &str| {
-                    fs::read_to_string(dir.join(f))
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string()
-                };
-                if !should_query_gpu(
-                    &read("control"),
-                    &read("runtime_status"),
-                    &read("runtime_usage"),
-                ) {
-                    return None;
+        let cpu_power_w = self.rapl.as_mut().and_then(Rapl::read_watts);
+        let (gpu_temp_c, gpu_power_w) = self
+            .nvml
+            .as_ref()
+            .and_then(|nvml| {
+                // Gate each query on sysfs runtime-PM state (free to read,
+                // never wakes the card): querying a GPU once a second would
+                // wake it and reset its autosuspend timer, keeping it out of
+                // RTD3 forever. With fine-grained power management the idle
+                // NVML session itself doesn't pin the card — only queries do.
+                if let Some(dir) = &self.nvidia_pm_dir {
+                    let read = |f: &str| {
+                        fs::read_to_string(dir.join(f))
+                            .unwrap_or_default()
+                            .trim()
+                            .to_string()
+                    };
+                    if !should_query_gpu(
+                        &read("control"),
+                        &read("runtime_status"),
+                        &read("runtime_usage"),
+                    ) {
+                        return None;
+                    }
                 }
-            }
-            let dev = nvml.device_by_index(0).ok()?;
-            dev.temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)
-                .ok()
-                .map(|t| t as f32)
-        });
-        (cpu, gpu)
+                let dev = nvml.device_by_index(0).ok()?;
+                let temp = dev
+                    .temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)
+                    .ok()
+                    .map(|t| t as f32);
+                let power = dev.power_usage().ok().map(|mw| mw as f32 / 1000.0);
+                Some((temp, power))
+            })
+            .unwrap_or((None, None));
+        Readings {
+            cpu_temp_c,
+            gpu_temp_c,
+            cpu_power_w,
+            gpu_power_w,
+        }
     }
 }
 

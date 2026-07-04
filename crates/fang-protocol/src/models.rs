@@ -22,6 +22,8 @@ pub struct LaptopModel {
     pub has_bho: bool,
     /// EC defines power mode 2 (feature "creator_mode").
     pub has_creator_mode: bool,
+    /// Has a lid logo LED (feature "logo").
+    pub has_logo: bool,
 }
 
 pub const MODELS: &[LaptopModel] = &[
@@ -33,6 +35,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x020F,
@@ -42,6 +45,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0210,
@@ -51,6 +55,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0220,
@@ -60,6 +65,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0224,
@@ -69,6 +75,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0225,
@@ -78,6 +85,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x022D,
@@ -87,6 +95,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x022F,
@@ -96,6 +105,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0232,
@@ -105,6 +115,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0233,
@@ -114,6 +125,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0234,
@@ -123,6 +135,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0239,
@@ -132,6 +145,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x023A,
@@ -141,6 +155,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x023B,
@@ -150,6 +165,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0240,
@@ -159,6 +175,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0245,
@@ -168,6 +185,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0246,
@@ -177,6 +195,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x024A,
@@ -186,6 +205,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x024B,
@@ -195,6 +215,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x024C,
@@ -204,6 +225,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x024D,
@@ -213,6 +235,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0252,
@@ -222,6 +245,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0253,
@@ -231,6 +255,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: true,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0255,
@@ -240,6 +265,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0256,
@@ -249,6 +275,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0259,
@@ -258,6 +285,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0268,
@@ -267,6 +295,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x026A,
@@ -276,6 +305,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: false,
     },
     LaptopModel {
         pid: 0x026D,
@@ -285,6 +315,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x026E,
@@ -294,6 +325,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x026F,
@@ -303,6 +335,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0270,
@@ -312,6 +345,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0276,
@@ -321,6 +355,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x0279,
@@ -330,6 +365,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x027A,
@@ -339,6 +375,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: false,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x028A,
@@ -348,6 +385,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x028B,
@@ -357,6 +395,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: false,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x028C,
@@ -366,6 +405,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x029D,
@@ -375,6 +415,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x029E,
@@ -384,6 +425,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x029F,
@@ -393,6 +435,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     // hardware-exercised: Fang HARDWARE_TESTING.md run 2026-07-03
     LaptopModel {
@@ -403,6 +446,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x02B6,
@@ -412,6 +456,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x02B7,
@@ -421,6 +466,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     // hardware-exercised: Fang HARDWARE_TESTING.md run 2026-07-03/04
     LaptopModel {
@@ -431,6 +477,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x02C5,
@@ -440,6 +487,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x02C6,
@@ -449,6 +497,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
     LaptopModel {
         pid: 0x02C7,
@@ -458,6 +507,7 @@ pub const MODELS: &[LaptopModel] = &[
         has_cpu_boost_oc: true,
         has_bho: true,
         has_creator_mode: false,
+        has_logo: true,
     },
 ];
 
@@ -470,6 +520,7 @@ pub const FALLBACK: LaptopModel = LaptopModel {
     has_cpu_boost_oc: false,
     has_bho: false,
     has_creator_mode: false,
+    has_logo: false,
 };
 
 pub fn by_pid(pid: u16) -> Option<&'static LaptopModel> {
@@ -501,6 +552,9 @@ mod tests {
         assert!(b18_2024.has_cpu_boost_oc && b18_2024.has_bho);
         // EC mode 2 is NOT defined on the Blade 18 — must never be sent.
         assert!(!b18_2024.has_creator_mode);
+        assert!(b18_2024.has_logo);
         assert!(by_pid(0x02A0).is_some());
+        // the only logo-less model in the table
+        assert!(!by_pid(0x026A).expect("Razer Book 13").has_logo);
     }
 }

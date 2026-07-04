@@ -19,12 +19,15 @@ pub struct ModelInfo {
     pub has_cpu_boost_oc: bool,
     pub has_bho: bool,
     pub has_creator_mode: bool,
+    pub has_logo: bool,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Sample {
     pub cpu_temp_c: Option<f32>,
     pub gpu_temp_c: Option<f32>,
+    pub cpu_power_w: Option<f32>,
+    pub gpu_power_w: Option<f32>,
     pub fan_rpm: Vec<u32>,
 }
 

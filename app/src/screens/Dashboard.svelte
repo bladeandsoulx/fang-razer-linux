@@ -11,11 +11,13 @@
     gaming: 'Gaming',
     custom: 'Custom'
   };
+
+  const watts = (w) => (w == null ? null : `${w.toFixed(1)} W`);
 </script>
 
 <div class="grid">
-  <Gauge value={$telemetry?.cpu_temp_c} label="CPU package" />
-  <Gauge value={$telemetry?.gpu_temp_c} label="GPU core" />
+  <Gauge value={$telemetry?.cpu_temp_c} label="CPU package" sub={watts($telemetry?.cpu_power_w)} />
+  <Gauge value={$telemetry?.gpu_temp_c} label="GPU core" sub={watts($telemetry?.gpu_power_w)} />
 
   <div class="fan card rise" style="animation-delay:80ms">
     <FanSpinner rpm={$avgRpm ?? 0} size={124} />

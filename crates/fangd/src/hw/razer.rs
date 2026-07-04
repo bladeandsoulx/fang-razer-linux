@@ -2,7 +2,7 @@
 
 use super::{sensors::Sensors, Hw, ModelInfo, Sample};
 use crate::state::AppliedState;
-use fang_protocol::api::{Boost, FanMode, PerfMode};
+use fang_protocol::api::{Boost, FanMode, KbdEffect, LogoMode, PerfMode};
 use fang_protocol::models;
 use fang_protocol::packet::{self, Report, Zone, RAZER_VID, REPORT_LEN, ZONES};
 use hidapi::{HidApi, HidDevice};
@@ -105,6 +105,7 @@ impl Hw for RazerHw {
             has_cpu_boost_oc: self.model.has_cpu_boost_oc,
             has_bho: self.model.has_bho,
             has_creator_mode: self.model.has_creator_mode,
+            has_logo: self.model.has_logo,
         }
     }
 
@@ -143,11 +144,34 @@ impl Hw for RazerHw {
         if self.model.has_bho {
             self.command(packet::set_bho(state.bho_enabled, state.bho_threshold))?;
         }
+
+        // Lighting: brightness percent scaled to the EC's 0..=255 range,
+        // then the keyboard hardware effect, then the logo LED.
+        self.command(packet::set_brightness(
+            (state.kbd_brightness.min(100) as u16 * 255 / 100) as u8,
+        ))?;
+        let (effect_id, params): (u8, Vec<u8>) = match state.kbd_effect {
+            KbdEffect::Off => (packet::kbd_effect::OFF, vec![]),
+            KbdEffect::Static { r, g, b } => (packet::kbd_effect::STATIC, vec![r, g, b]),
+            KbdEffect::Spectrum => (packet::kbd_effect::SPECTRUM, vec![]),
+            KbdEffect::Wave => (packet::kbd_effect::WAVE, vec![0x01]),
+        };
+        self.command(packet::set_kbd_effect(effect_id, &params))?;
+        if self.model.has_logo {
+            if state.logo_led != LogoMode::Off {
+                let effect = match state.logo_led {
+                    LogoMode::Breathing => 0x02,
+                    _ => 0x00,
+                };
+                self.command(packet::set_logo_effect(effect))?;
+            }
+            self.command(packet::set_logo_state(state.logo_led != LogoMode::Off))?;
+        }
         Ok(())
     }
 
     fn sample(&mut self) -> Sample {
-        let (cpu_temp_c, gpu_temp_c) = self.sensors.temps();
+        let r = self.sensors.read();
         let mut fan_rpm = Vec::with_capacity(2);
         for zone in ZONES {
             match self.command(packet::get_fan_rpm(zone)) {
@@ -156,8 +180,10 @@ impl Hw for RazerHw {
             }
         }
         Sample {
-            cpu_temp_c,
-            gpu_temp_c,
+            cpu_temp_c: r.cpu_temp_c,
+            gpu_temp_c: r.gpu_temp_c,
+            cpu_power_w: r.cpu_power_w,
+            gpu_power_w: r.gpu_power_w,
             fan_rpm,
         }
     }
@@ -188,6 +214,7 @@ impl Hw for MonitorOnly {
             has_cpu_boost_oc: false,
             has_bho: false,
             has_creator_mode: false,
+            has_logo: false,
         }
     }
 
@@ -196,10 +223,12 @@ impl Hw for MonitorOnly {
     }
 
     fn sample(&mut self) -> Sample {
-        let (cpu_temp_c, gpu_temp_c) = self.sensors.temps();
+        let r = self.sensors.read();
         Sample {
-            cpu_temp_c,
-            gpu_temp_c,
+            cpu_temp_c: r.cpu_temp_c,
+            gpu_temp_c: r.gpu_temp_c,
+            cpu_power_w: r.cpu_power_w,
+            gpu_power_w: r.gpu_power_w,
             fan_rpm: vec![],
         }
     }

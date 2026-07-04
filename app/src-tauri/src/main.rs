@@ -5,7 +5,7 @@ mod color;
 mod display;
 
 use client::Client;
-use fang_protocol::api::{Boost, Command, FanMode, GpuMode, PerfMode};
+use fang_protocol::api::{Boost, Command, FanMode, GpuMode, KbdEffect, LogoMode, PerfMode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -85,6 +85,22 @@ async fn set_gpu_mode(client: State<'_, Client>, gpu_mode: GpuMode) -> Result<Va
 #[tauri::command]
 async fn set_bho(client: State<'_, Client>, enabled: bool, threshold: u8) -> Result<Value, String> {
     client.request(Command::SetBho { enabled, threshold }).await
+}
+
+#[tauri::command]
+async fn set_lighting(
+    client: State<'_, Client>,
+    brightness: Option<u8>,
+    kbd_effect: Option<KbdEffect>,
+    logo_led: Option<LogoMode>,
+) -> Result<Value, String> {
+    client
+        .request(Command::SetLighting {
+            brightness,
+            kbd_effect,
+            logo_led,
+        })
+        .await
 }
 
 #[tauri::command]
@@ -241,6 +257,7 @@ fn main() {
             set_fan,
             set_gpu_mode,
             set_bho,
+            set_lighting,
             get_display,
             set_refresh_rate,
             get_color,

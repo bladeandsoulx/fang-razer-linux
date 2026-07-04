@@ -49,6 +49,16 @@ impl MockHw {
             PerfMode::Custom => (70.0, 66.0),
         }
     }
+
+    fn target_power(&self) -> (f32, f32) {
+        match self.state.perf_mode {
+            PerfMode::Silent => (16.0, 9.0),
+            PerfMode::Balanced => (28.0, 18.0),
+            PerfMode::Creator => (45.0, 60.0),
+            PerfMode::Gaming => (58.0, 92.0),
+            PerfMode::Custom => (50.0, 70.0),
+        }
+    }
 }
 
 impl Hw for MockHw {
@@ -63,6 +73,7 @@ impl Hw for MockHw {
             has_cpu_boost_oc: true,
             has_bho: true,
             has_creator_mode: true,
+            has_logo: true,
         }
     }
 
@@ -82,9 +93,12 @@ impl Hw for MockHw {
             let jitter = ((t * 1.9 + i as f32).sin()) * 25.0;
             *r += (target + jitter - *r) * 0.15;
         }
+        let (cpu_w, gpu_w) = self.target_power();
         Sample {
             cpu_temp_c: Some(self.cpu_temp),
             gpu_temp_c: Some(self.gpu_temp),
+            cpu_power_w: Some(cpu_w + wiggle),
+            gpu_power_w: Some(gpu_w + wiggle * 1.4),
             fan_rpm: self.rpm.iter().map(|r| *r as u32).collect(),
         }
     }

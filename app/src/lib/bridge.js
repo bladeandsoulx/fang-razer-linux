@@ -72,6 +72,15 @@ export async function setBho(enabled, threshold) {
   }
 }
 
+/** Partial update: { brightness, kbdEffect, logoLed } — omit to keep. */
+export async function setLighting(patch) {
+  if (invoke) {
+    status.set(await invoke('set_lighting', patch));
+  } else {
+    sim.setLighting(patch);
+  }
+}
+
 export async function setRefreshRate(hz) {
   if (invoke) {
     display.set(await invoke('set_refresh_rate', { hz }));
@@ -107,6 +116,10 @@ const sim = {
     has_bho: true,
     bho_enabled: false,
     bho_threshold: 80,
+    has_logo: true,
+    kbd_brightness: 60,
+    kbd_effect: { effect: 'static', r: 0x44, g: 0xd6, b: 0x2c },
+    logo_led: 'static',
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -140,16 +153,23 @@ const sim = {
       gaming: [74, 70],
       custom: [70, 66]
     }[mode];
+    const watts = {
+      silent: [16, 9],
+      balanced: [28, 18],
+      creator: [45, 60],
+      gaming: [58, 92],
+      custom: [50, 70]
+    }[mode];
     const rpm =
       this.state.fan.mode === 'manual'
         ? this.state.fan.rpm
         : { silent: 2200, balanced: 2600, creator: 3300, gaming: 3800, custom: 3400 }[mode];
-    return { temps, rpm };
+    return { temps, watts, rpm };
   },
 
   tick() {
     this.t += 1;
-    const { temps, rpm } = this.targets();
+    const { temps, watts, rpm } = this.targets();
     const wiggle = Math.sin(this.t * 0.7) * 1.2 + Math.sin(this.t * 0.13) * 2;
     this.cpu += (temps[0] + wiggle - this.cpu) * 0.08;
     this.gpu += (temps[1] + wiggle * 0.8 - this.gpu) * 0.06;
@@ -159,6 +179,8 @@ const sim = {
     telemetry.set({
       cpu_temp_c: this.cpu,
       gpu_temp_c: this.gpu,
+      cpu_power_w: watts[0] + wiggle * 1.5,
+      gpu_power_w: watts[1] + wiggle * 2,
       fan_rpm: this.rpm.map((r) => Math.round(r)),
       ts_ms: Date.now()
     });
@@ -197,6 +219,13 @@ const sim = {
   setBho(enabled, threshold) {
     this.state.bho_enabled = enabled;
     this.state.bho_threshold = Math.min(80, Math.max(50, threshold));
+    this.push();
+  },
+
+  setLighting({ brightness, kbdEffect, logoLed }) {
+    if (brightness != null) this.state.kbd_brightness = Math.min(100, brightness);
+    if (kbdEffect) this.state.kbd_effect = kbdEffect;
+    if (logoLed) this.state.logo_led = logoLed;
     this.push();
   },
 

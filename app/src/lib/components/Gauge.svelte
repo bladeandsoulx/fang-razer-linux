@@ -9,6 +9,7 @@
   export let max = 100;
   export let unit = '°C';
   export let label = '';
+  export let sub = null; // secondary reading shown under the label
   export let warn = 78;
   export let danger = 90;
 
@@ -50,6 +51,9 @@
     <text x="100" y="124" class="unit">{unit}</text>
   </svg>
   <div class="card-label">{label}</div>
+  {#if sub}
+    <div class="sub mono">{sub}</div>
+  {/if}
 </div>
 
 <style>
@@ -115,5 +119,11 @@
     letter-spacing: 0.2em;
     fill: var(--ink-dim);
     text-anchor: middle;
+  }
+
+  .sub {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--green-soft);
   }
 </style>

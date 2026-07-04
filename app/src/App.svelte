@@ -4,6 +4,7 @@
   import Performance from './screens/Performance.svelte';
   import FanScreen from './screens/FanScreen.svelte';
   import GpuDisplay from './screens/GpuDisplay.svelte';
+  import Lighting from './screens/Lighting.svelte';
   import Settings from './screens/Settings.svelte';
   import Disconnected from './screens/Disconnected.svelte';
   import { connected, status } from './lib/stores.js';
@@ -14,6 +15,7 @@
     { id: 'performance', title: 'Performance', icon: 'performance', component: Performance },
     { id: 'fan', title: 'Fan', icon: 'fan', component: FanScreen },
     { id: 'gpu', title: 'GPU & Display', icon: 'gpu', component: GpuDisplay },
+    { id: 'lighting', title: 'Lighting', icon: 'light', component: Lighting },
     { id: 'settings', title: 'Settings', icon: 'settings', component: Settings }
   ];
 

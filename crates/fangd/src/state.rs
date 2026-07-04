@@ -1,6 +1,6 @@
 //! Desired hardware state, persisted so it survives restarts and resume.
 
-use fang_protocol::api::{Boost, FanMode, PerfMode};
+use fang_protocol::api::{Boost, FanMode, KbdEffect, LogoMode, PerfMode};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -10,15 +10,39 @@ pub struct AppliedState {
     pub cpu_boost: Boost,
     pub gpu_boost: Boost,
     pub fan: FanMode,
-    // serde defaults keep state files written before the BHO feature loading.
+    // serde defaults keep state files from before each feature loading.
     #[serde(default)]
     pub bho_enabled: bool,
     #[serde(default = "default_bho_threshold")]
     pub bho_threshold: u8,
+    /// Keyboard backlight brightness percent (0..=100).
+    #[serde(default = "default_brightness")]
+    pub kbd_brightness: u8,
+    #[serde(default = "default_kbd_effect")]
+    pub kbd_effect: KbdEffect,
+    #[serde(default = "default_logo")]
+    pub logo_led: LogoMode,
 }
 
 fn default_bho_threshold() -> u8 {
     80
+}
+
+fn default_brightness() -> u8 {
+    60
+}
+
+/// Synapse's out-of-box look: static Razer green.
+fn default_kbd_effect() -> KbdEffect {
+    KbdEffect::Static {
+        r: 0x44,
+        g: 0xD6,
+        b: 0x2C,
+    }
+}
+
+fn default_logo() -> LogoMode {
+    LogoMode::Static
 }
 
 impl Default for AppliedState {
@@ -30,6 +54,9 @@ impl Default for AppliedState {
             fan: FanMode::Auto,
             bho_enabled: false,
             bho_threshold: default_bho_threshold(),
+            kbd_brightness: default_brightness(),
+            kbd_effect: default_kbd_effect(),
+            logo_led: default_logo(),
         }
     }
 }
