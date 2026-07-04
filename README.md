@@ -56,6 +56,7 @@ service, builds the app `.deb`, and adds you to the `fang` group
 | Model | USB PID | Status |
 |---|---|---|
 | Razer Blade 18 (2023) | `02a0` | ✅ verified profile |
+| Razer Blade 18 (2024) | `02b8` | ✅ verified profile |
 | Other Razer Blades | any `1532:*` | ⚠️ works with conservative fan limits ("unverified" badge) |
 
 Adding a model is a one-line entry in

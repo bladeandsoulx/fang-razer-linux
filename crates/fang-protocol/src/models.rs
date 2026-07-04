@@ -14,13 +14,24 @@ pub struct LaptopModel {
     pub has_cpu_boost_oc: bool,
 }
 
-pub const MODELS: &[LaptopModel] = &[LaptopModel {
-    pid: 0x02A0,
-    name: "Razer Blade 18 (2023)",
-    fan_rpm_min: 2200,
-    fan_rpm_max: 5000,
-    has_cpu_boost_oc: true,
-}];
+pub const MODELS: &[LaptopModel] = &[
+    LaptopModel {
+        pid: 0x02A0,
+        name: "Razer Blade 18 (2023)",
+        fan_rpm_min: 2200,
+        fan_rpm_max: 5000,
+        has_cpu_boost_oc: true,
+    },
+    // Limits and features from Razer-Control's laptops.json (GPL-2.0),
+    // exercised on this hardware: modes, boosts, manual fan, telemetry.
+    LaptopModel {
+        pid: 0x02B8,
+        name: "Razer Blade 18 (2024)",
+        fan_rpm_min: 2200,
+        fan_rpm_max: 5000,
+        has_cpu_boost_oc: true,
+    },
+];
 
 /// Conservative limits for Razer laptops not (yet) in [`MODELS`].
 pub const FALLBACK: LaptopModel = LaptopModel {
