@@ -99,8 +99,14 @@ Run the tests with `cargo test --workspace`.
 
 ## Credits & license
 
-GPL-2.0. EC protocol knowledge derived from
-[razer-laptop-control-no-dkms](https://github.com/Razer-Linux/razer-laptop-control-no-dkms)
-(GPL-2.0) and [OpenRazer](https://openrazer.github.io/).
+GPL-2.0. Much of Fang's hardware knowledge — the EC packet layouts, the
+48-model device table, and the battery-limiter and lighting commands — was
+derived from **[Razer-Control](https://github.com/Rintastic247/Razer-Control)**
+by **Rintastic247** (GPL-2.0), the maintained continuation of
+[razer-laptop-control-no-dkms](https://github.com/Razer-Linux/razer-laptop-control-no-dkms),
+with additional reference from [OpenRazer](https://openrazer.github.io/).
+If Fang is useful to you, please consider
+[supporting Razer-Control's author](https://www.paypal.com/donate/?hosted_button_id=H4SCC24R8KS4A).
+
 Fang is not affiliated with or endorsed by Razer Inc. "Razer" and "Synapse"
 are trademarks of Razer Inc.

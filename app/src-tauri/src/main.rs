@@ -103,6 +103,19 @@ async fn set_lighting(
         .await
 }
 
+/// Open an http(s) URL in the user's browser (credits / donation links).
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("refusing to open non-http(s) url".into());
+    }
+    std::process::Command::new("xdg-open")
+        .arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("xdg-open: {e}"))
+}
+
 #[tauri::command]
 fn get_display() -> display::DisplayInfo {
     display::get()
@@ -258,6 +271,7 @@ fn main() {
             set_gpu_mode,
             set_bho,
             set_lighting,
+            open_url,
             get_display,
             set_refresh_rate,
             get_color,

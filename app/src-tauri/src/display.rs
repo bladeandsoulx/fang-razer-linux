@@ -1,10 +1,13 @@
-//! Internal-panel refresh rate control.
+//! Refresh rate control for the active display.
 //!
 //! This is a user-session capability (unlike fan/EC control), so it lives in
-//! the app, not the daemon. Backends: `kscreen-doctor` (KDE) and `xrandr`
-//! (X11). GNOME Wayland's mutter API needs a full monitors-config
-//! round-trip and is out of scope for v1 — reported as unsupported with a
-//! hint. Non-Linux builds simulate a 240 Hz panel for development.
+//! the app, not the daemon. Backends, tried in order:
+//!   1. GNOME's `org.gnome.Mutter.DisplayConfig` D-Bus API — works on GNOME
+//!      Wayland *and* Xorg, and drives the primary monitor (external screens
+//!      included), not just the built-in panel.
+//!   2. `kscreen-doctor` (KDE).
+//!   3. `xrandr` (bare X11).
+//! Non-Linux builds simulate a 240 Hz panel for development.
 
 use serde::Serialize;
 
@@ -78,6 +81,9 @@ mod backend {
     }
 
     pub fn get() -> DisplayInfo {
+        if let Some(info) = mutter::get() {
+            return info;
+        }
         if let Ok(out) = run("kscreen-doctor", &["-o"]) {
             if let Some(info) = super::parse::kscreen(&out) {
                 return info;
@@ -92,6 +98,10 @@ mod backend {
     }
 
     pub fn set(hz: u32) -> Result<DisplayInfo, String> {
+        // GNOME (Wayland or Xorg): the mutter backend handles everything.
+        if mutter::available() {
+            return mutter::set(hz);
+        }
         let info = get();
         if !info.supported {
             return Err(info.hint);
@@ -121,6 +131,236 @@ mod backend {
             )?;
         }
         Ok(get())
+    }
+
+    /// GNOME Mutter DisplayConfig over the session bus. Reads the current
+    /// monitor layout, then re-applies it with a single monitor's mode
+    /// swapped — the API demands the full logical-monitor config, not a
+    /// delta, so the whole layout is reconstructed each time.
+    mod mutter {
+        use super::super::DisplayInfo;
+        use serde::{Deserialize, Serialize};
+        use std::collections::HashMap;
+        use zbus::blocking::Connection;
+        use zbus::zvariant::{OwnedValue, Type};
+
+        const SVC: &str = "org.gnome.Mutter.DisplayConfig";
+        const PATH: &str = "/org/gnome/Mutter/DisplayConfig";
+        const IFACE: &str = "org.gnome.Mutter.DisplayConfig";
+        /// ApplyMonitorsConfig method 2 = persistent: apply and save, with no
+        /// "keep changes?" dialog (that is the Settings app's temporary path).
+        const METHOD_PERSISTENT: u32 = 2;
+
+        // GetCurrentState reply shapes (signatures in comments).
+        #[derive(Deserialize, Type)]
+        struct MonitorId {
+            // (ssss)
+            connector: String,
+            _vendor: String,
+            _product: String,
+            _serial: String,
+        }
+
+        #[derive(Deserialize, Type)]
+        struct Mode {
+            // (siiddada{sv})
+            id: String,
+            width: i32,
+            height: i32,
+            refresh: f64,
+            _preferred_scale: f64,
+            _supported_scales: Vec<f64>,
+            props: HashMap<String, OwnedValue>,
+        }
+
+        #[derive(Deserialize, Type)]
+        struct Monitor {
+            // ((ssss)a(siiddada{sv})a{sv})
+            id: MonitorId,
+            modes: Vec<Mode>,
+            _props: HashMap<String, OwnedValue>,
+        }
+
+        #[derive(Deserialize, Type)]
+        struct LogicalMonitor {
+            // (iiduba(ssss)a{sv})
+            x: i32,
+            y: i32,
+            scale: f64,
+            transform: u32,
+            primary: bool,
+            monitors: Vec<MonitorId>,
+            _props: HashMap<String, OwnedValue>,
+        }
+
+        type State = (
+            u32,
+            Vec<Monitor>,
+            Vec<LogicalMonitor>,
+            HashMap<String, OwnedValue>,
+        );
+
+        // ApplyMonitorsConfig request shapes.
+        #[derive(Serialize, Type)]
+        struct MonitorConfig {
+            // (ssa{sv})
+            connector: String,
+            mode_id: String,
+            props: HashMap<String, OwnedValue>,
+        }
+
+        #[derive(Serialize, Type)]
+        struct LogicalMonitorConfig {
+            // (iiduba(ssa{sv}))
+            x: i32,
+            y: i32,
+            scale: f64,
+            transform: u32,
+            primary: bool,
+            monitors: Vec<MonitorConfig>,
+        }
+
+        fn state(conn: &Connection) -> Result<State, String> {
+            let reply = conn
+                .call_method(Some(SVC), PATH, Some(IFACE), "GetCurrentState", &())
+                .map_err(|e| e.to_string())?;
+            reply.body().deserialize().map_err(|e| e.to_string())
+        }
+
+        fn prop_bool(props: &HashMap<String, OwnedValue>, key: &str) -> bool {
+            props
+                .get(key)
+                .and_then(|v| bool::try_from(v.clone()).ok())
+                .unwrap_or(false)
+        }
+
+        /// The connector we drive: the primary logical monitor's first
+        /// output, else the first monitor — i.e. the screen the user treats
+        /// as main, external displays included.
+        fn target(logical: &[LogicalMonitor]) -> Option<String> {
+            logical
+                .iter()
+                .find(|l| l.primary)
+                .or_else(|| logical.first())
+                .and_then(|l| l.monitors.first())
+                .map(|m| m.connector.clone())
+        }
+
+        fn info(monitors: &[Monitor], logical: &[LogicalMonitor]) -> Option<DisplayInfo> {
+            let conn = target(logical)?;
+            let mon = monitors.iter().find(|m| m.id.connector == conn)?;
+            let cur = mon.modes.iter().find(|md| prop_bool(&md.props, "is-current"))?;
+            let mut available: Vec<u32> = mon
+                .modes
+                .iter()
+                .filter(|md| md.width == cur.width && md.height == cur.height)
+                .map(|md| md.refresh.round() as u32)
+                .collect();
+            available.sort_unstable();
+            available.dedup();
+            Some(DisplayInfo {
+                supported: true,
+                output: conn,
+                resolution: format!("{}x{}", cur.width, cur.height),
+                current_hz: cur.refresh.round() as u32,
+                available_hz: available,
+                hint: String::new(),
+            })
+        }
+
+        pub fn get() -> Option<DisplayInfo> {
+            let conn = Connection::session().ok()?;
+            let (_serial, monitors, logical, _props) = state(&conn).ok()?;
+            info(&monitors, &logical)
+        }
+
+        /// True only on GNOME (the service answers). Elsewhere we fall through
+        /// to kscreen-doctor / xrandr.
+        pub fn available() -> bool {
+            Connection::session()
+                .ok()
+                .is_some_and(|c| state(&c).is_ok())
+        }
+
+        pub fn set(hz: u32) -> Result<DisplayInfo, String> {
+            let conn = Connection::session().map_err(|e| e.to_string())?;
+            let (serial, monitors, logical, _props) = state(&conn)?;
+
+            let tgt = target(&logical).ok_or("no active monitor")?;
+            let mon = monitors
+                .iter()
+                .find(|m| m.id.connector == tgt)
+                .ok_or("target monitor vanished")?;
+            let cur = mon
+                .modes
+                .iter()
+                .find(|md| prop_bool(&md.props, "is-current"))
+                .ok_or("no current mode")?;
+            // Highest exact refresh whose rounded value matches the request,
+            // at the current resolution (so we never change resolution).
+            let want = mon
+                .modes
+                .iter()
+                .filter(|md| {
+                    md.width == cur.width
+                        && md.height == cur.height
+                        && md.refresh.round() as u32 == hz
+                })
+                .max_by(|a, b| a.refresh.total_cmp(&b.refresh))
+                .ok_or_else(|| format!("{hz} Hz not available on {tgt}"))?;
+            let new_mode = want.id.clone();
+
+            // Each monitor's current mode id, so the untouched displays keep
+            // their mode when we hand mutter the full layout.
+            let current_mode: HashMap<String, String> = monitors
+                .iter()
+                .filter_map(|m| {
+                    m.modes
+                        .iter()
+                        .find(|md| prop_bool(&md.props, "is-current"))
+                        .map(|md| (m.id.connector.clone(), md.id.clone()))
+                })
+                .collect();
+
+            let configs: Vec<LogicalMonitorConfig> = logical
+                .iter()
+                .map(|l| LogicalMonitorConfig {
+                    x: l.x,
+                    y: l.y,
+                    scale: l.scale,
+                    transform: l.transform,
+                    primary: l.primary,
+                    monitors: l
+                        .monitors
+                        .iter()
+                        .filter_map(|mi| {
+                            let mode_id = if mi.connector == tgt {
+                                new_mode.clone()
+                            } else {
+                                current_mode.get(&mi.connector).cloned()?
+                            };
+                            Some(MonitorConfig {
+                                connector: mi.connector.clone(),
+                                mode_id,
+                                props: HashMap::new(),
+                            })
+                        })
+                        .collect(),
+                })
+                .collect();
+
+            let props: HashMap<String, OwnedValue> = HashMap::new();
+            conn.call_method(
+                Some(SVC),
+                PATH,
+                Some(IFACE),
+                "ApplyMonitorsConfig",
+                &(serial, METHOD_PERSISTENT, configs, props),
+            )
+            .map_err(|e| format!("apply refresh rate: {e}"))?;
+
+            get().ok_or_else(|| "refresh rate applied, but re-reading state failed".to_string())
+        }
     }
 }
 

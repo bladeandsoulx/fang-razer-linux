@@ -2,7 +2,7 @@
   import Toggle from '../lib/components/Toggle.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import { status, uiSettings, connected } from '../lib/stores.js';
-  import { saveUiSettings, setBho, inTauri } from '../lib/bridge.js';
+  import { saveUiSettings, setBho, openExternal, inTauri } from '../lib/bridge.js';
 
   let slider = null; // local slider position before release
 
@@ -105,8 +105,20 @@
       on Linux: performance modes, fan control and telemetry, no Windows required.
     </p>
     <p class="dim">
-      GPL-2.0 · EC protocol derived from razer-laptop-control · not affiliated with
-      Razer Inc.
+      GPL-2.0 · EC protocol, model table, battery limiter and lighting derived from
+      <button class="link" on:click={() => openExternal('https://github.com/Rintastic247/Razer-Control')}
+        >Razer-Control</button
+      >
+      by Rintastic247 (GPL-2.0) and razer-laptop-control · not affiliated with Razer Inc.
+    </p>
+    <p class="dim">
+      If Fang is useful to you, consider supporting Razer-Control's author:
+      <button
+        class="link"
+        on:click={() =>
+          openExternal('https://www.paypal.com/donate/?hosted_button_id=H4SCC24R8KS4A')}
+        >donate via PayPal</button
+      >.
     </p>
   </div>
 </div>
@@ -231,5 +243,17 @@
 
   .dim {
     color: var(--ink-dim);
+  }
+
+  .link {
+    padding: 0;
+    font: inherit;
+    color: var(--green);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .link:hover {
+    color: var(--green-soft);
   }
 </style>

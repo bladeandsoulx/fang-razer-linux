@@ -81,6 +81,15 @@ export async function setLighting(patch) {
   }
 }
 
+/** Open a URL in the system browser (credits / donation links). */
+export async function openExternal(url) {
+  if (invoke) {
+    await invoke('open_url', { url });
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
 export async function setRefreshRate(hz) {
   if (invoke) {
     display.set(await invoke('set_refresh_rate', { hz }));
