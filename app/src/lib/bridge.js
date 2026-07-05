@@ -2,7 +2,7 @@
 // built-in simulator with the same wire shapes, so the UI can be developed
 // and demoed without the daemon.
 
-import { connected, display, status, telemetry, uiSettings } from './stores.js';
+import { connected, display, panel, status, telemetry, uiSettings } from './stores.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -29,6 +29,7 @@ async function initTauri() {
     if (up) status.set(await invoke('get_status'));
     uiSettings.set(await invoke('get_ui_settings'));
     display.set(await invoke('get_display'));
+    panel.set(await invoke('get_panel'));
   } catch (e) {
     console.error('bridge init', e);
   }
@@ -97,6 +98,15 @@ export async function setRefreshRate(hz) {
   }
 }
 
+/** Internal laptop-panel backlight brightness (percent). */
+export async function setPanelBrightness(percent) {
+  if (invoke) {
+    panel.set(await invoke('set_panel_brightness', { percent }));
+  } else {
+    sim.setPanelBrightness(percent);
+  }
+}
+
 /** External-monitor DDC color-temperature preset (value = VCP 0x14 code). */
 export async function setColorPreset(value) {
   if (invoke) {
@@ -149,6 +159,7 @@ const sim = {
     available_hz: [60, 120, 240],
     hint: ''
   },
+  panelInfo: { supported: true, brightness: 80, hint: '' },
   cpu: 52,
   gpu: 46,
   rpm: [2300, 2280],
@@ -247,6 +258,11 @@ const sim = {
   setColorPreset(value) {
     this.state.color_current = value;
     this.push();
+  },
+
+  setPanelBrightness(percent) {
+    this.panelInfo = { ...this.panelInfo, brightness: Math.min(100, Math.max(5, percent)) };
+    panel.set(this.panelInfo);
   }
 };
 
@@ -254,6 +270,7 @@ function initSim() {
   connected.set(true);
   uiSettings.set({ autostart: false, close_to_tray: true });
   display.set(sim.displayInfo);
+  panel.set(sim.panelInfo);
   sim.push();
   sim.tick();
   setInterval(() => sim.tick(), 1000);

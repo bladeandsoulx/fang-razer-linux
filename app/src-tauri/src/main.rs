@@ -2,6 +2,7 @@
 
 mod client;
 mod display;
+mod panel;
 
 use client::Client;
 use fang_protocol::api::{Boost, Command, FanMode, GpuMode, KbdEffect, LogoMode, PerfMode};
@@ -130,6 +131,16 @@ async fn set_color_preset(client: State<'_, Client>, value: u8) -> Result<Value,
 #[tauri::command]
 fn set_refresh_rate(hz: u32) -> Result<display::DisplayInfo, String> {
     display::set(hz)
+}
+
+#[tauri::command]
+fn get_panel() -> panel::PanelInfo {
+    panel::get()
+}
+
+#[tauri::command]
+fn set_panel_brightness(percent: u8) -> Result<panel::PanelInfo, String> {
+    panel::set(percent)
 }
 
 #[tauri::command]
@@ -271,6 +282,8 @@ fn main() {
             open_url,
             get_display,
             set_refresh_rate,
+            get_panel,
+            set_panel_brightness,
             get_ui_settings,
             set_ui_settings
         ])

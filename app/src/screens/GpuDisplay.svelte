@@ -1,8 +1,8 @@
 <script>
   import ModeCard from '../lib/components/ModeCard.svelte';
   import Icon from '../lib/components/Icon.svelte';
-  import { status, display } from '../lib/stores.js';
-  import { setGpuMode, setRefreshRate, setColorPreset } from '../lib/bridge.js';
+  import { status, display, panel } from '../lib/stores.js';
+  import { setGpuMode, setRefreshRate, setColorPreset, setPanelBrightness } from '../lib/bridge.js';
 
   const GPU_MODES = [
     {
@@ -28,9 +28,12 @@
   let gpuError = '';
   let rateError = '';
   let colorError = '';
+  let brightError = '';
   let busyHz = null;
+  let brightSlider = null; // local slider position before release
 
   $: gpuSupported = $status?.gpu_mode != null;
+  $: brightness = brightSlider ?? $panel?.brightness ?? 80;
 
   async function pickGpu(e) {
     gpuError = '';
@@ -59,6 +62,16 @@
       await setColorPreset(value);
     } catch (err) {
       colorError = String(err);
+    }
+  }
+
+  async function commitBrightness(e) {
+    brightSlider = null;
+    brightError = '';
+    try {
+      await setPanelBrightness(+e.target.value);
+    } catch (err) {
+      brightError = String(err);
     }
   }
 </script>
@@ -124,6 +137,36 @@
   {/if}
   {#if rateError}
     <div class="flag error"><Icon name="warn" size={14} /> {rateError}</div>
+  {/if}
+</div>
+
+<div class="section-label card-label second">Laptop panel brightness</div>
+
+<div class="card rise pad">
+  {#if $panel?.supported}
+    <div class="bright-row">
+      <Icon name="monitor" size={22} />
+      <input
+        type="range"
+        min="5"
+        max="100"
+        step="5"
+        value={brightness}
+        style="--fill:{brightness}%"
+        on:input={(e) => (brightSlider = +e.target.value)}
+        on:change={commitBrightness}
+      />
+      <span class="mono bright-val">{brightness}%</span>
+    </div>
+    <p class="dim note">The built-in screen's backlight. Applies instantly.</p>
+  {:else if $panel}
+    <p>Panel brightness isn't controllable here.</p>
+    <p class="dim">{$panel.hint}</p>
+  {:else}
+    <p class="dim">Reading panel…</p>
+  {/if}
+  {#if brightError}
+    <div class="flag error"><Icon name="warn" size={14} /> {brightError}</div>
   {/if}
 </div>
 
@@ -275,5 +318,23 @@
 
   .color-seg button {
     flex: 1;
+  }
+
+  .bright-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--ink-dim);
+  }
+
+  .bright-row input[type='range'] {
+    flex: 1;
+  }
+
+  .bright-val {
+    font-size: 13px;
+    color: var(--ink);
+    min-width: 42px;
+    text-align: right;
   }
 </style>
