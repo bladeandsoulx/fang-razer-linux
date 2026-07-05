@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod client;
-mod color;
 mod display;
 
 use client::Client;
@@ -121,14 +120,11 @@ fn get_display() -> display::DisplayInfo {
     display::get()
 }
 
+/// External-monitor color-temperature preset over DDC/CI (handled by fangd,
+/// which owns i2c access). `value` is the VCP 0x14 code from Status.
 #[tauri::command]
-fn get_color() -> color::ColorInfo {
-    color::get()
-}
-
-#[tauri::command]
-fn set_color_profile(profile: String) -> Result<color::ColorInfo, String> {
-    color::set(&profile)
+async fn set_color_preset(client: State<'_, Client>, value: u8) -> Result<Value, String> {
+    client.request(Command::SetColorPreset { value }).await
 }
 
 #[tauri::command]
@@ -271,11 +267,10 @@ fn main() {
             set_gpu_mode,
             set_bho,
             set_lighting,
+            set_color_preset,
             open_url,
             get_display,
             set_refresh_rate,
-            get_color,
-            set_color_profile,
             get_ui_settings,
             set_ui_settings
         ])

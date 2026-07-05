@@ -1,8 +1,8 @@
 <script>
   import ModeCard from '../lib/components/ModeCard.svelte';
   import Icon from '../lib/components/Icon.svelte';
-  import { status, display, color } from '../lib/stores.js';
-  import { setGpuMode, setRefreshRate, setColorProfile } from '../lib/bridge.js';
+  import { status, display } from '../lib/stores.js';
+  import { setGpuMode, setRefreshRate, setColorPreset } from '../lib/bridge.js';
 
   const GPU_MODES = [
     {
@@ -24,13 +24,6 @@
       blurb: 'NVIDIA drives everything. Lowest latency, best for external displays.'
     }
   ];
-
-  const COLOR_PROFILES = {
-    native: { label: 'Native', blurb: 'Full panel gamut, no remapping — as factory calibrated.' },
-    srgb: { label: 'sRGB', blurb: 'Web and everyday content; the safe default.' },
-    adobe_rgb: { label: 'Adobe RGB', blurb: 'Print and photography workflows.' },
-    rec709: { label: 'Rec. 709', blurb: 'Video editing and grading (HD standard).' }
-  };
 
   let gpuError = '';
   let rateError = '';
@@ -60,10 +53,10 @@
     }
   }
 
-  async function pickColor(profile) {
+  async function pickColor(value) {
     colorError = '';
     try {
-      await setColorProfile(profile);
+      await setColorPreset(value);
     } catch (err) {
       colorError = String(err);
     }
@@ -134,29 +127,30 @@
   {/if}
 </div>
 
-<div class="section-label card-label second">Color profile</div>
+<div class="section-label card-label second">Monitor color temperature</div>
 
 <div class="card rise pad">
-  {#if $color?.supported}
+  {#if $status?.color_ddc}
     <div class="seg color-seg">
-      {#each $color.available as id}
-        <button class:on={$color.current === id} on:click={() => pickColor(id)}>
-          {COLOR_PROFILES[id]?.label ?? id}
+      {#each $status.color_presets as p}
+        <button class:on={$status.color_current === p.value} on:click={() => pickColor(p.value)}>
+          {p.name}
         </button>
       {/each}
     </div>
     <p class="dim note">
-      {#if $color.current && COLOR_PROFILES[$color.current]}
-        {COLOR_PROFILES[$color.current].blurb}
-      {:else}
-        Active profile: {$color.current_name} (set outside Fang).
-      {/if}
+      Sent to the external monitor over DDC/CI (its built-in color presets).
+      The laptop's internal panel can't be changed this way — no Linux equivalent
+      of Synapse's panel gamut clamp exists.
     </p>
-  {:else if $color}
-    <p>Color profile switching isn't available here.</p>
-    <p class="dim">{$color.hint}</p>
+  {:else if $status}
+    <p>No DDC/CI-capable external monitor detected.</p>
+    <p class="dim">
+      Laptop panels don't support DDC/CI. Connect an external monitor with DDC/CI
+      enabled in its on-screen menu to control its color presets here.
+    </p>
   {:else}
-    <p class="dim">Reading color profiles…</p>
+    <p class="dim">Reading monitor…</p>
   {/if}
   {#if colorError}
     <div class="flag error"><Icon name="warn" size={14} /> {colorError}</div>

@@ -2,7 +2,7 @@
 // built-in simulator with the same wire shapes, so the UI can be developed
 // and demoed without the daemon.
 
-import { color, connected, display, status, telemetry, uiSettings } from './stores.js';
+import { connected, display, status, telemetry, uiSettings } from './stores.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -29,7 +29,6 @@ async function initTauri() {
     if (up) status.set(await invoke('get_status'));
     uiSettings.set(await invoke('get_ui_settings'));
     display.set(await invoke('get_display'));
-    color.set(await invoke('get_color'));
   } catch (e) {
     console.error('bridge init', e);
   }
@@ -98,11 +97,12 @@ export async function setRefreshRate(hz) {
   }
 }
 
-export async function setColorProfile(profile) {
+/** External-monitor DDC color-temperature preset (value = VCP 0x14 code). */
+export async function setColorPreset(value) {
   if (invoke) {
-    color.set(await invoke('set_color_profile', { profile }));
+    status.set(await invoke('set_color_preset', { value }));
   } else {
-    sim.setColorProfile(profile);
+    sim.setColorPreset(value);
   }
 }
 
@@ -129,6 +129,14 @@ const sim = {
     kbd_brightness: 60,
     kbd_effect: { effect: 'static', r: 0x44, g: 0xd6, b: 0x2c },
     logo_led: 'static',
+    color_ddc: true,
+    color_presets: [
+      { value: 0x03, name: 'Warm (5000K)' },
+      { value: 0x04, name: 'sRGB · D65 (6500K)' },
+      { value: 0x07, name: 'Cool (9300K)' },
+      { value: 0x0b, name: 'Custom (User)' }
+    ],
+    color_current: 0x04,
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -139,13 +147,6 @@ const sim = {
     resolution: '2560x1600',
     current_hz: 240,
     available_hz: [60, 120, 240],
-    hint: ''
-  },
-  colorInfo: {
-    supported: true,
-    current: 'native',
-    current_name: 'Native (EDID)',
-    available: ['native', 'srgb', 'adobe_rgb', 'rec709'],
     hint: ''
   },
   cpu: 52,
@@ -243,15 +244,9 @@ const sim = {
     display.set(this.displayInfo);
   },
 
-  setColorProfile(profile) {
-    const names = {
-      native: 'Native (EDID)',
-      srgb: 'sRGB',
-      adobe_rgb: 'Adobe RGB (1998)',
-      rec709: 'Rec. 709'
-    };
-    this.colorInfo = { ...this.colorInfo, current: profile, current_name: names[profile] };
-    color.set(this.colorInfo);
+  setColorPreset(value) {
+    this.state.color_current = value;
+    this.push();
   }
 };
 
@@ -259,7 +254,6 @@ function initSim() {
   connected.set(true);
   uiSettings.set({ autostart: false, close_to_tray: true });
   display.set(sim.displayInfo);
-  color.set(sim.colorInfo);
   sim.push();
   sim.tick();
   setInterval(() => sim.tick(), 1000);

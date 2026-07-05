@@ -81,6 +81,15 @@ pub enum KbdEffect {
     Wave,
 }
 
+/// One selectable color-temperature preset on an external DDC/CI monitor
+/// (VCP feature 0x14). Laptop eDP panels don't support DDC/CI.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColorPreset {
+    /// The VCP 0x14 value written over DDC/CI.
+    pub value: u8,
+    pub name: String,
+}
+
 /// Which GPU drives the system (the Linux take on Synapse's "GPU mode" /
 /// Advanced Optimus). Switching takes effect at the next logout/reboot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,6 +144,10 @@ pub enum Command {
         kbd_effect: Option<KbdEffect>,
         #[serde(default)]
         logo_led: Option<LogoMode>,
+    },
+    /// Set the external monitor's DDC/CI color-temperature preset (VCP 0x14).
+    SetColorPreset {
+        value: u8,
     },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
@@ -209,6 +222,11 @@ pub struct Status {
     pub kbd_brightness: u8,
     pub kbd_effect: KbdEffect,
     pub logo_led: LogoMode,
+    /// An external monitor exposes DDC/CI color-temperature presets.
+    pub color_ddc: bool,
+    pub color_presets: Vec<ColorPreset>,
+    /// Active preset's VCP 0x14 value, if read.
+    pub color_current: Option<u8>,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a

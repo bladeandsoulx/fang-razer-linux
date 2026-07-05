@@ -99,7 +99,8 @@ where
                     | Command::SetFan { .. }
                     | Command::SetGpuMode { .. }
                     | Command::SetBho { .. }
-                    | Command::SetLighting { .. }) => {
+                    | Command::SetLighting { .. }
+                    | Command::SetColorPreset { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {

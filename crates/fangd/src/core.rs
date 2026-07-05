@@ -1,5 +1,6 @@
 //! Shared daemon core: hardware handle + desired state + status assembly.
 
+use crate::ddc::Ddc;
 use crate::gpu::GpuSwitch;
 use crate::hw::Hw;
 use crate::state::AppliedState;
@@ -9,6 +10,7 @@ use std::path::PathBuf;
 pub struct Core {
     hw: Box<dyn Hw>,
     gpu: Box<dyn GpuSwitch>,
+    ddc: Ddc,
     pub state: AppliedState,
     state_path: PathBuf,
 }
@@ -17,12 +19,14 @@ impl Core {
     pub fn new(
         hw: Box<dyn Hw>,
         gpu: Box<dyn GpuSwitch>,
+        ddc: Ddc,
         state: AppliedState,
         state_path: PathBuf,
     ) -> Core {
         Core {
             hw,
             gpu,
+            ddc,
             state,
             state_path,
         }
@@ -50,6 +54,9 @@ impl Core {
             kbd_brightness: self.state.kbd_brightness,
             kbd_effect: self.state.kbd_effect,
             logo_led: self.state.logo_led,
+            color_ddc: self.ddc.available(),
+            color_presets: self.ddc.presets(),
+            color_current: self.ddc.current(),
             gpu_mode: self.gpu.current(),
             gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -107,6 +114,12 @@ impl Core {
             Command::SetGpuMode { gpu_mode } => {
                 // Persisted by the PRIME tool itself, not our state file.
                 self.gpu.set(*gpu_mode)?;
+                return Ok(true);
+            }
+            Command::SetColorPreset { value } => {
+                // The monitor remembers its own OSD setting, so this isn't
+                // part of the persisted EC state.
+                self.ddc.set(*value)?;
                 return Ok(true);
             }
             Command::SetBho { enabled, threshold } => {

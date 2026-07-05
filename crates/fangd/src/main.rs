@@ -1,4 +1,5 @@
 mod core;
+mod ddc;
 mod gpu;
 mod hw;
 mod server;
@@ -68,7 +69,8 @@ async fn main() {
     let state = AppliedState::load(&state_path);
     let hw = hw::open(args.mock);
     let gpu = gpu::open(args.mock);
-    let mut core = Core::new(hw, gpu, state, state_path);
+    let ddc = ddc::open(args.mock);
+    let mut core = Core::new(hw, gpu, ddc, state, state_path);
     core.reapply();
     log::info!(
         "fangd {} — {}",
