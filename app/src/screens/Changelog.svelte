@@ -2,6 +2,33 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.6.0',
+      date: '2026-07-06',
+      title: 'External-monitor brightness',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'External-monitor brightness over DDC/CI (VCP 0x10), on the External monitor card.',
+            'In-app Changelog screen between Lighting and Settings.'
+          ]
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'Lighting layout: internal-panel brightness now sits under the lid-logo card (two columns).'
+          ]
+        },
+        {
+          kind: 'Fixed',
+          items: [
+            'Creator mode re-enabled on the Blade 18 — it is a standard EC mode, not an undefined one.',
+            'Honest fan labels: the figure is the EC setpoint, not a live tachometer reading.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.5.0',
       date: '2026-07-05',
       title: 'Display color & brightness',
@@ -10,7 +37,6 @@
           kind: 'Added',
           items: [
             'External-monitor color temperature over DDC/CI (Warm / sRGB 6500K / Neutral / Cool / Custom).',
-            'External-monitor brightness over DDC/CI (VCP 0x10), on the same External monitor card.',
             "Internal laptop-panel brightness via logind's SetBrightness."
           ]
         },

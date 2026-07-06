@@ -4,6 +4,31 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-07-06 — External-monitor brightness
+
+### Added
+- **External-monitor brightness over DDC/CI.** A luminance slider for the
+  external display (VCP feature 0x10), scaled to the monitor's own range and
+  sent through the daemon (`SetMonitorBrightness`). Shares the "External
+  monitor" card with the color presets; hidden when the monitor doesn't report
+  the feature.
+- **In-app Changelog screen** between Lighting and Settings, so release notes
+  are readable without leaving the app.
+
+### Changed
+- **Lighting layout** is now two masonry-style columns: the internal
+  laptop-panel brightness card sits directly beneath the lid-logo card, instead
+  of landing diagonally opposite it in the old auto-flow grid.
+
+### Fixed
+- **Creator mode re-enabled on the Blade 18** (2023/2024). Creator is EC power
+  mode 2 — a standard Razer mode, hardware-verified on the 2024 Blade 18 — not
+  an undefined mode, so the earlier per-model gate wrongly hid it.
+- **Honest fan-speed labels.** Razer laptops expose no live tachometer, so the
+  fan figure is the EC's target setpoint, not a live measurement. The readout
+  and its hint now say so, instead of implying a static number is a live
+  reading.
+
 ## [0.5.0] — 2026-07-05 — Display color & brightness
 
 ### Added
@@ -12,10 +37,6 @@ All notable changes to Fang are documented here. The format is based on
   Custom) are now switchable from the app. Handled by the daemon (which owns
   i2c access) via `ddcutil` (VCP feature 0x14), with a `SetColorPreset` command
   and the presets a monitor advertises exposed on the status.
-- **External-monitor brightness over DDC/CI.** A luminance slider for the
-  external display (VCP feature 0x10), scaled to the monitor's own range and
-  sent through the daemon (`SetMonitorBrightness`). Sits with the color presets
-  on one "External monitor" card; hidden when the monitor doesn't report it.
 - **Internal laptop-panel brightness.** A brightness slider for the built-in
   screen, read from `/sys/class/backlight` and applied through logind's
   `SetBrightness` (no root, works on Wayland; clamped to 5–100 %).
@@ -108,6 +129,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.6.0]: https://github.com/solomonmorse/fang/releases/tag/v0.6.0
 [0.5.0]: https://github.com/solomonmorse/fang/releases/tag/v0.5.0
 [0.4.0]: https://github.com/solomonmorse/fang/releases/tag/v0.4.0
 [0.3.0]: https://github.com/solomonmorse/fang/releases/tag/v0.3.0
