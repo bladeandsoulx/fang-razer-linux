@@ -99,128 +99,132 @@
 </script>
 
 <div class="cols">
-  <div class="card rise pad">
-    <span class="card-label">Keyboard backlight</span>
+  <div class="col">
+    <div class="card rise pad">
+      <span class="card-label">Keyboard backlight</span>
 
-    <div class="bright">
-      <div class="cap mono">{brightness}<em>% brightness</em></div>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="5"
-        value={brightness}
-        style="--fill:{fill}%"
-        on:input={(e) => (slider = +e.target.value)}
-        on:change={commitBrightness}
-      />
-    </div>
-
-    <div class="group">
-      <span class="card-label">Effect</span>
-      <div class="seg">
-        {#each EFFECTS as e}
-          <button class:on={effect === e.id} on:click={() => pickEffect(e.id)}>{e.label}</button>
-        {/each}
+      <div class="bright">
+        <div class="cap mono">{brightness}<em>% brightness</em></div>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value={brightness}
+          style="--fill:{fill}%"
+          on:input={(e) => (slider = +e.target.value)}
+          on:change={commitBrightness}
+        />
       </div>
-    </div>
 
-    {#if effect === 'static'}
-      <label class="colorrow">
-        <span>Color</span>
-        <input type="color" value={color} on:change={pickColor} />
-        <span class="mono dim">{color}</span>
-      </label>
-    {/if}
-  </div>
-
-  {#if $status?.has_logo}
-    <div class="card rise pad" style="animation-delay:70ms">
-      <span class="card-label">Lid logo</span>
       <div class="group">
+        <span class="card-label">Effect</span>
         <div class="seg">
-          {#each LOGO_MODES as m}
-            <button class:on={$status?.logo_led === m.id} on:click={() => pickLogo(m.id)}>
-              {m.label}
-            </button>
+          {#each EFFECTS as e}
+            <button class:on={effect === e.id} on:click={() => pickEffect(e.id)}>{e.label}</button>
           {/each}
         </div>
       </div>
-      <p class="hint">
-        The snake on the lid. Static keeps it lit, Breathing pulses it slowly.
-      </p>
-    </div>
-  {/if}
 
-  {#if $panel?.supported}
-    <div class="card rise pad" style="animation-delay:140ms">
-      <span class="card-label">Laptop panel brightness</span>
-      <div class="bright">
-        <div class="cap mono">{panelBrightness}<em>% brightness</em></div>
-        <input
-          type="range"
-          min="5"
-          max="100"
-          step="5"
-          value={panelBrightness}
-          style="--fill:{panelBrightness}%"
-          on:input={(e) => (panelSlider = +e.target.value)}
-          on:change={commitPanel}
-        />
-      </div>
-      <p class="hint">The built-in screen's backlight — applies instantly.</p>
-      {#if brightError}<p class="err">{brightError}</p>{/if}
-    </div>
-  {/if}
-
-  <div class="card rise pad" style="animation-delay:210ms">
-    <span class="card-label">External monitor</span>
-    {#if $status?.color_ddc}
-      {#if $status.monitor_brightness != null}
-        <div class="bright">
-          <div class="cap mono">{monitorBrightness}<em>% brightness</em></div>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={monitorBrightness}
-            style="--fill:{monitorBrightness}%"
-            on:input={(e) => (monSlider = +e.target.value)}
-            on:change={commitMonitor}
-          />
-        </div>
+      {#if effect === 'static'}
+        <label class="colorrow">
+          <span>Color</span>
+          <input type="color" value={color} on:change={pickColor} />
+          <span class="mono dim">{color}</span>
+        </label>
       {/if}
+    </div>
 
-      {#if $status.color_presets.length}
+    <div class="card rise pad" style="animation-delay:140ms">
+      <span class="card-label">External monitor</span>
+      {#if $status?.color_ddc}
+        {#if $status.monitor_brightness != null}
+          <div class="bright">
+            <div class="cap mono">{monitorBrightness}<em>% brightness</em></div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={monitorBrightness}
+              style="--fill:{monitorBrightness}%"
+              on:input={(e) => (monSlider = +e.target.value)}
+              on:change={commitMonitor}
+            />
+          </div>
+        {/if}
+
+        {#if $status.color_presets.length}
+          <div class="group">
+            <span class="card-label">Color temperature</span>
+            <div class="presets">
+              {#each $status.color_presets as p}
+                <button
+                  class="chip"
+                  class:on={$status.color_current === p.value}
+                  on:click={() => pickMonitorColor(p.value)}
+                >
+                  {p.name}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <p class="hint">
+          Brightness and color presets on the external monitor, sent over DDC/CI.
+          The laptop panel can't be color-managed on Linux — no Synapse-style
+          gamut clamp exists.
+        </p>
+      {:else if $status}
+        <p class="hint">
+          No DDC/CI monitor detected. Connect an external monitor with DDC/CI
+          enabled in its on-screen menu to control its brightness and color here.
+        </p>
+      {/if}
+      {#if colorError}<p class="err">{colorError}</p>{/if}
+    </div>
+  </div>
+
+  <div class="col">
+    {#if $status?.has_logo}
+      <div class="card rise pad" style="animation-delay:70ms">
+        <span class="card-label">Lid logo</span>
         <div class="group">
-          <span class="card-label">Color temperature</span>
-          <div class="presets">
-            {#each $status.color_presets as p}
-              <button
-                class="chip"
-                class:on={$status.color_current === p.value}
-                on:click={() => pickMonitorColor(p.value)}
-              >
-                {p.name}
+          <div class="seg">
+            {#each LOGO_MODES as m}
+              <button class:on={$status?.logo_led === m.id} on:click={() => pickLogo(m.id)}>
+                {m.label}
               </button>
             {/each}
           </div>
         </div>
-      {/if}
-
-      <p class="hint">
-        Brightness and color presets on the external monitor, sent over DDC/CI.
-        The laptop panel can't be color-managed on Linux — no Synapse-style
-        gamut clamp exists.
-      </p>
-    {:else if $status}
-      <p class="hint">
-        No DDC/CI monitor detected. Connect an external monitor with DDC/CI
-        enabled in its on-screen menu to control its brightness and color here.
-      </p>
+        <p class="hint">
+          The snake on the lid. Static keeps it lit, Breathing pulses it slowly.
+        </p>
+      </div>
     {/if}
-    {#if colorError}<p class="err">{colorError}</p>{/if}
+
+    {#if $panel?.supported}
+      <div class="card rise pad" style="animation-delay:210ms">
+        <span class="card-label">Laptop panel brightness</span>
+        <div class="bright">
+          <div class="cap mono">{panelBrightness}<em>% brightness</em></div>
+          <input
+            type="range"
+            min="5"
+            max="100"
+            step="5"
+            value={panelBrightness}
+            style="--fill:{panelBrightness}%"
+            on:input={(e) => (panelSlider = +e.target.value)}
+            on:change={commitPanel}
+          />
+        </div>
+        <p class="hint">The built-in screen's backlight — applies instantly.</p>
+        {#if brightError}<p class="err">{brightError}</p>{/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -230,6 +234,14 @@
     grid-template-columns: 1fr 1fr;
     gap: 14px;
     align-items: start;
+  }
+
+  /* Each column packs its own cards top-down, so the internal-panel card
+     sits tight under the lid-logo card instead of leaving a grid gap. */
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
 
   .pad {
