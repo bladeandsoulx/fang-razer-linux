@@ -7,9 +7,8 @@
 //! accepts power mode 2 (most ECs do NOT define it — never send mode 2
 //! unless this flag is set, undefined modes trip EC failsafes).
 //!
-//! Entries marked "hardware-exercised" were additionally tested end-to-end
-//! by Fang on the physical machine; the rest carry the reference project's
-//! limits. Unknown PIDs get [`FALLBACK`] limits and `verified: false`.
+//! Listed PIDs are recognized models with `verified: true`; unknown PIDs get
+//! [`FALLBACK`] limits and `verified: false`.
 
 pub struct LaptopModel {
     pub pid: u16,
@@ -437,7 +436,6 @@ pub const MODELS: &[LaptopModel] = &[
         has_creator_mode: false,
         has_logo: true,
     },
-    // hardware-exercised: Fang HARDWARE_TESTING.md run 2026-07-03
     LaptopModel {
         pid: 0x02A0,
         name: "Razer Blade 18 2023",
@@ -445,8 +443,8 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        // Creator (EC mode 2) is one of Razer's standard perf modes and is
-        // hardware-verified on the 2024 Blade 18; enabled on both.
+        // Creator (EC mode 2) is one of Razer's standard perf modes; enabled
+        // on both Blade 18 generations.
         has_creator_mode: true,
         has_logo: true,
     },
@@ -470,7 +468,6 @@ pub const MODELS: &[LaptopModel] = &[
         has_creator_mode: false,
         has_logo: true,
     },
-    // hardware-exercised: Fang HARDWARE_TESTING.md run 2026-07-03/04
     LaptopModel {
         pid: 0x02B8,
         name: "Razer Blade 18 2024",
@@ -549,10 +546,10 @@ mod tests {
     }
 
     #[test]
-    fn hardware_exercised_models() {
+    fn known_models_have_expected_flags() {
         let b18_2024 = by_pid(0x02B8).expect("Blade 18 2024");
         assert!(b18_2024.has_cpu_boost_oc && b18_2024.has_bho);
-        // Creator (EC mode 2) is a standard Razer mode, verified on this model.
+        // Creator (EC mode 2) is a standard Razer mode, enabled for this model.
         assert!(b18_2024.has_creator_mode);
         assert!(b18_2024.has_logo);
         assert!(by_pid(0x02A0).is_some());

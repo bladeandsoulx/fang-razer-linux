@@ -23,9 +23,9 @@ impl PerfMode {
             PerfMode::Gaming => 1,
             PerfMode::Creator => 2,
             // The EC has no silent mode: razer-laptop-control defines only
-            // 0..=2 and 4, and sending the undefined 3 puts at least the
-            // pid 02b8 EC into a failsafe with fans at max. Silent rides on
-            // Custom; the hardware backend pins both boosts to Low.
+            // 0..=2 and 4, and sending the undefined 3 trips an EC failsafe
+            // with fans at max. Silent rides on Custom; the hardware backend
+            // pins both boosts to Low.
             PerfMode::Silent => 4,
             PerfMode::Custom => 4,
         }

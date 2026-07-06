@@ -94,7 +94,7 @@
           items: [
             'Battery Health Optimizer — charge limiter (50–80%).',
             "48-model device table imported from Razer-Control's laptops.json.",
-            'Verified profile for the Razer Blade 18 2024 (1532:02b8).'
+            'Verified profile for the Razer Blade 18 2024.'
           ]
         },
         {

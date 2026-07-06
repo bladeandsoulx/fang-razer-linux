@@ -108,7 +108,7 @@ fang/
   subscribe stream).
 - Frontend: developed and visually verified in browser with a mock bridge;
   full app demoable on Windows via mock daemon over TCP.
-- **Real hardware:** verified on the user's Blade 18 Ubuntu SSD using
+- **Real hardware:** validated against a physical Blade 18 using the
   `HARDWARE_TESTING.md` checklist (daemon logs, mode switching, fan RPM
   readback, temps sanity).
 

@@ -62,7 +62,7 @@ for the full list.
 
 | Profile source | Status |
 |---|---|
-| Blade 18 2023 (`02a0`), Blade 18 2024 (`02b8`) | ✅ exercised end-to-end on hardware by Fang |
+| Blade 18 2023 (`02a0`), Blade 18 2024 (`02b8`) | ✅ complete profile — fan limits + all feature flags |
 | 46 further models | ✅ limits from Razer-Control's table (field-tested by that project) |
 | Unknown `1532:*` PIDs | ⚠️ conservative fan limits, "unverified" badge |
 

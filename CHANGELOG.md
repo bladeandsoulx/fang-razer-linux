@@ -22,8 +22,8 @@ All notable changes to Fang are documented here. The format is based on
 
 ### Fixed
 - **Creator mode re-enabled on the Blade 18** (2023/2024). Creator is EC power
-  mode 2 — a standard Razer mode, hardware-verified on the 2024 Blade 18 — not
-  an undefined mode, so the earlier per-model gate wrongly hid it.
+  mode 2 — a standard Razer mode, not an undefined one — so the earlier
+  per-model gate wrongly hid it.
 - **Honest fan-speed labels.** Razer laptops expose no live tachometer, so the
   fan figure is the EC's target setpoint, not a live measurement. The readout
   and its hint now say so, instead of implying a static number is a live
@@ -89,7 +89,7 @@ All notable changes to Fang are documented here. The format is based on
 - **48-model device table** imported from Razer-Control's `laptops.json`
   (GPL-2.0): per-model fan limits and feature flags (CPU overclock boost,
   battery limiter, Creator mode) for Blades from 2015–2025.
-- **Verified profile for the Razer Blade 18 2024** (USB `1532:02b8`), unlocking
+- **Verified profile for the Razer Blade 18 2024**, unlocking
   the CPU overclock boost level and dropping the "unverified" badge.
 
 ### Fixed
@@ -115,7 +115,7 @@ All notable changes to Fang are documented here. The format is based on
   hidden) and made the glows static — measured render-engine use dropped from
   5.7 % to 0.8 %.
 - **Silent mode was the loudest mode.** It was mapped to EC power mode 3, which
-  the Razer EC doesn't define; the pid `02b8` EC answered it with a max-fan
+  the Razer EC doesn't define; the EC answered it with a max-fan
   failsafe. Silent now rides on the EC's Custom mode with both boosts pinned to
   Low.
 
