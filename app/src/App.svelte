@@ -5,6 +5,7 @@
   import FanScreen from './screens/FanScreen.svelte';
   import GpuDisplay from './screens/GpuDisplay.svelte';
   import Lighting from './screens/Lighting.svelte';
+  import Changelog from './screens/Changelog.svelte';
   import Settings from './screens/Settings.svelte';
   import Disconnected from './screens/Disconnected.svelte';
   import { connected, status } from './lib/stores.js';
@@ -16,6 +17,7 @@
     { id: 'fan', title: 'Fan', icon: 'fan', component: FanScreen },
     { id: 'gpu', title: 'GPU & Display', icon: 'gpu', component: GpuDisplay },
     { id: 'lighting', title: 'Lighting', icon: 'light', component: Lighting },
+    { id: 'changelog', title: 'Changelog', icon: 'history', component: Changelog },
     { id: 'settings', title: 'Settings', icon: 'settings', component: Settings }
   ];
 
