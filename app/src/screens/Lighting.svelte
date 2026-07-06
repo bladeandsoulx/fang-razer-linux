@@ -1,6 +1,6 @@
 <script>
-  import { status } from '../lib/stores.js';
-  import { setLighting } from '../lib/bridge.js';
+  import { status, panel } from '../lib/stores.js';
+  import { setLighting, setPanelBrightness, setColorPreset } from '../lib/bridge.js';
 
   const EFFECTS = [
     { id: 'off', label: 'Off' },
@@ -52,6 +52,32 @@
 
   function pickLogo(id) {
     setLighting({ logoLed: id });
+  }
+
+  // ---- laptop panel brightness + external-monitor color ------------------
+  let panelSlider = null;
+  let brightError = '';
+  let colorError = '';
+
+  $: panelBrightness = panelSlider ?? $panel?.brightness ?? 80;
+
+  async function commitPanel(e) {
+    panelSlider = null;
+    brightError = '';
+    try {
+      await setPanelBrightness(+e.target.value);
+    } catch (err) {
+      brightError = String(err);
+    }
+  }
+
+  async function pickMonitorColor(value) {
+    colorError = '';
+    try {
+      await setColorPreset(value);
+    } catch (err) {
+      colorError = String(err);
+    }
   }
 </script>
 
@@ -108,6 +134,55 @@
       </p>
     </div>
   {/if}
+
+  {#if $panel?.supported}
+    <div class="card rise pad" style="animation-delay:140ms">
+      <span class="card-label">Laptop panel brightness</span>
+      <div class="bright">
+        <div class="cap mono">{panelBrightness}<em>% brightness</em></div>
+        <input
+          type="range"
+          min="5"
+          max="100"
+          step="5"
+          value={panelBrightness}
+          style="--fill:{panelBrightness}%"
+          on:input={(e) => (panelSlider = +e.target.value)}
+          on:change={commitPanel}
+        />
+      </div>
+      <p class="hint">The built-in screen's backlight — applies instantly.</p>
+      {#if brightError}<p class="err">{brightError}</p>{/if}
+    </div>
+  {/if}
+
+  <div class="card rise pad" style="animation-delay:210ms">
+    <span class="card-label">Monitor color</span>
+    {#if $status?.color_ddc}
+      <div class="presets">
+        {#each $status.color_presets as p}
+          <button
+            class="chip"
+            class:on={$status.color_current === p.value}
+            on:click={() => pickMonitorColor(p.value)}
+          >
+            {p.name}
+          </button>
+        {/each}
+      </div>
+      <p class="hint">
+        The external monitor's built-in color presets, sent over DDC/CI. The
+        laptop panel can't be color-managed on Linux — no Synapse-style gamut
+        clamp exists.
+      </p>
+    {:else if $status}
+      <p class="hint">
+        No DDC/CI monitor detected. Connect an external monitor with DDC/CI
+        enabled in its on-screen menu to control its color presets here.
+      </p>
+    {/if}
+    {#if colorError}<p class="err">{colorError}</p>{/if}
+  </div>
 </div>
 
 <style>
@@ -205,5 +280,37 @@
     font-size: 11.5px;
     line-height: 1.5;
     color: var(--ink-dim);
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 8px 12px;
+    border: 1px solid var(--panel-edge-hi);
+    border-radius: 7px;
+    font-size: 12px;
+    color: var(--ink-dim);
+    background: #15191c;
+    transition: all 0.15s ease;
+  }
+
+  .chip:hover {
+    color: var(--ink);
+  }
+
+  .chip.on {
+    background: rgba(68, 214, 44, 0.14);
+    color: var(--green);
+    border-color: var(--green-dim);
+    text-shadow: 0 0 8px var(--green-glow);
+  }
+
+  .err {
+    font-size: 11.5px;
+    color: var(--red);
   }
 </style>
