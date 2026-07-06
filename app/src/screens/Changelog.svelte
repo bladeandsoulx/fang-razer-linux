@@ -10,6 +10,7 @@
           kind: 'Added',
           items: [
             'External-monitor color temperature over DDC/CI (Warm / sRGB 6500K / Neutral / Cool / Custom).',
+            'External-monitor brightness over DDC/CI (VCP 0x10), on the same External monitor card.',
             "Internal laptop-panel brightness via logind's SetBrightness."
           ]
         },

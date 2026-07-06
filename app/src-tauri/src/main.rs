@@ -128,6 +128,15 @@ async fn set_color_preset(client: State<'_, Client>, value: u8) -> Result<Value,
     client.request(Command::SetColorPreset { value }).await
 }
 
+/// External-monitor brightness over DDC/CI (VCP 0x10), also handled by fangd.
+/// `value` is a 0..=100 percent of the monitor's luminance range.
+#[tauri::command]
+async fn set_monitor_brightness(client: State<'_, Client>, value: u8) -> Result<Value, String> {
+    client
+        .request(Command::SetMonitorBrightness { value })
+        .await
+}
+
 #[tauri::command]
 fn set_refresh_rate(hz: u32) -> Result<display::DisplayInfo, String> {
     display::set(hz)
@@ -279,6 +288,7 @@ fn main() {
             set_bho,
             set_lighting,
             set_color_preset,
+            set_monitor_brightness,
             open_url,
             get_display,
             set_refresh_rate,

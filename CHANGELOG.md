@@ -12,6 +12,10 @@ All notable changes to Fang are documented here. The format is based on
   Custom) are now switchable from the app. Handled by the daemon (which owns
   i2c access) via `ddcutil` (VCP feature 0x14), with a `SetColorPreset` command
   and the presets a monitor advertises exposed on the status.
+- **External-monitor brightness over DDC/CI.** A luminance slider for the
+  external display (VCP feature 0x10), scaled to the monitor's own range and
+  sent through the daemon (`SetMonitorBrightness`). Sits with the color presets
+  on one "External monitor" card; hidden when the monitor doesn't report it.
 - **Internal laptop-panel brightness.** A brightness slider for the built-in
   screen, read from `/sys/class/backlight` and applied through logind's
   `SetBrightness` (no root, works on Wayland; clamped to 5–100 %).

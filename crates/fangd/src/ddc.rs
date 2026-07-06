@@ -28,6 +28,12 @@ pub struct Ddc {
     presets: Vec<ColorPreset>,
     /// Last known VCP 0x14 value (cached; DDC reads are ~0.5 s each).
     current: Option<u8>,
+    /// Last known VCP 0x10 (luminance) as a percentage, if the monitor
+    /// reports one. None when the monitor doesn't expose brightness.
+    brightness: Option<u8>,
+    /// Monitor's own max for VCP 0x10; a percentage is scaled to this on set
+    /// (most panels report 100, some 255 or other).
+    bright_max: u32,
     mock: bool,
 }
 
@@ -60,14 +66,17 @@ impl Ddc {
             })
             .collect();
         let current = read_current(display);
+        let (brightness, bright_max) = read_brightness(display);
         log::info!(
-            "DDC color: external display #{display}, {} presets, current {current:?}",
+            "DDC color: external display #{display}, {} presets, current {current:?}, brightness {brightness:?}",
             presets.len()
         );
         Ddc {
             display: Some(display),
             presets,
             current,
+            brightness,
+            bright_max,
             mock: false,
         }
     }
@@ -77,6 +86,8 @@ impl Ddc {
             display: None,
             presets: Vec::new(),
             current: None,
+            brightness: None,
+            bright_max: 100,
             mock: false,
         }
     }
@@ -92,6 +103,8 @@ impl Ddc {
                 })
                 .collect(),
             current: Some(0x04),
+            brightness: Some(70),
+            bright_max: 100,
             mock: true,
         }
     }
@@ -106,6 +119,29 @@ impl Ddc {
 
     pub fn current(&self) -> Option<u8> {
         self.current
+    }
+
+    pub fn brightness(&self) -> Option<u8> {
+        self.brightness
+    }
+
+    /// Set the external monitor's luminance (VCP 0x10) from a 0..=100 percent,
+    /// scaling to the monitor's own max.
+    pub fn set_brightness(&mut self, percent: u8) -> Result<(), String> {
+        let percent = percent.min(100);
+        if self.mock {
+            self.brightness = Some(percent);
+            return Ok(());
+        }
+        if self.brightness.is_none() {
+            return Err("this monitor doesn't expose brightness over DDC/CI".into());
+        }
+        let display = self.display.ok_or("no external DDC/CI monitor")?;
+        let raw = (percent as u32 * self.bright_max / 100).min(self.bright_max);
+        ddcutil(&["-d", &display.to_string(), "setvcp", "10", &raw.to_string()])
+            .ok_or("ddcutil setvcp 10 failed (monitor busy or DDC/CI disabled in its OSD?)")?;
+        self.brightness = Some(percent);
+        Ok(())
     }
 
     pub fn set(&mut self, value: u8) -> Result<(), String> {
@@ -172,4 +208,22 @@ fn read_current(display: u8) -> Option<u8> {
     out.split_whitespace()
         .next_back()
         .and_then(|t| u8::from_str_radix(t.trim_start_matches('x'), 16).ok())
+}
+
+/// VCP 0x10 (luminance) is continuous: `--brief` prints `VCP 10 C <cur> <max>`
+/// in decimal. Returns (current as 0..=100 percent, raw max) so the UI shows a
+/// percentage and [`Ddc::set_brightness`] can scale back. `(None, 100)` when
+/// the monitor doesn't answer the feature.
+fn read_brightness(display: u8) -> (Option<u8>, u32) {
+    let Some(out) = ddcutil(&["-d", &display.to_string(), "getvcp", "10", "--brief"]) else {
+        return (None, 100);
+    };
+    // Tokens: "VCP" "10" "C" <cur> <max>; the decimals are [10, cur, max].
+    let nums: Vec<u32> = out.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+    if let [.., cur, max] = nums[..] {
+        if max > 0 {
+            return (Some((cur * 100 / max).min(100) as u8), max);
+        }
+    }
+    (None, 100)
 }

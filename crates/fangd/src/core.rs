@@ -57,6 +57,7 @@ impl Core {
             color_ddc: self.ddc.available(),
             color_presets: self.ddc.presets(),
             color_current: self.ddc.current(),
+            monitor_brightness: self.ddc.brightness(),
             gpu_mode: self.gpu.current(),
             gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -120,6 +121,11 @@ impl Core {
                 // The monitor remembers its own OSD setting, so this isn't
                 // part of the persisted EC state.
                 self.ddc.set(*value)?;
+                return Ok(true);
+            }
+            Command::SetMonitorBrightness { value } => {
+                // Also lives in the monitor's own NVRAM, not our state file.
+                self.ddc.set_brightness(*value)?;
                 return Ok(true);
             }
             Command::SetBho { enabled, threshold } => {

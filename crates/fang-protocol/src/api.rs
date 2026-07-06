@@ -149,6 +149,11 @@ pub enum Command {
     SetColorPreset {
         value: u8,
     },
+    /// Set the external monitor's DDC/CI brightness (VCP 0x10) as a 0..=100
+    /// percent of the monitor's own luminance range.
+    SetMonitorBrightness {
+        value: u8,
+    },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
@@ -227,6 +232,9 @@ pub struct Status {
     pub color_presets: Vec<ColorPreset>,
     /// Active preset's VCP 0x14 value, if read.
     pub color_current: Option<u8>,
+    /// External monitor's brightness (VCP 0x10) as a 0..=100 percent. None
+    /// when no monitor, or the monitor doesn't expose luminance over DDC/CI.
+    pub monitor_brightness: Option<u8>,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a

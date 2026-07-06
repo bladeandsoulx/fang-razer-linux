@@ -116,6 +116,15 @@ export async function setColorPreset(value) {
   }
 }
 
+/** External-monitor DDC brightness (VCP 0x10), value = 0..=100 percent. */
+export async function setMonitorBrightness(value) {
+  if (invoke) {
+    status.set(await invoke('set_monitor_brightness', { value }));
+  } else {
+    sim.setMonitorBrightness(value);
+  }
+}
+
 // ---------------------------------------------------------------- simulator
 
 const sim = {
@@ -147,6 +156,7 @@ const sim = {
       { value: 0x0b, name: 'Custom (User)' }
     ],
     color_current: 0x04,
+    monitor_brightness: 75,
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -257,6 +267,11 @@ const sim = {
 
   setColorPreset(value) {
     this.state.color_current = value;
+    this.push();
+  },
+
+  setMonitorBrightness(value) {
+    this.state.monitor_brightness = Math.min(100, Math.max(0, value));
     this.push();
   },
 

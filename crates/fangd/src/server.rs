@@ -100,7 +100,8 @@ where
                     | Command::SetGpuMode { .. }
                     | Command::SetBho { .. }
                     | Command::SetLighting { .. }
-                    | Command::SetColorPreset { .. }) => {
+                    | Command::SetColorPreset { .. }
+                    | Command::SetMonitorBrightness { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {
