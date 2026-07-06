@@ -445,7 +445,9 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
+        // Creator (EC mode 2) is one of Razer's standard perf modes and is
+        // hardware-verified on the 2024 Blade 18; enabled on both.
+        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -476,7 +478,7 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
+        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -550,8 +552,8 @@ mod tests {
     fn hardware_exercised_models() {
         let b18_2024 = by_pid(0x02B8).expect("Blade 18 2024");
         assert!(b18_2024.has_cpu_boost_oc && b18_2024.has_bho);
-        // EC mode 2 is NOT defined on the Blade 18 — must never be sent.
-        assert!(!b18_2024.has_creator_mode);
+        // Creator (EC mode 2) is a standard Razer mode, verified on this model.
+        assert!(b18_2024.has_creator_mode);
         assert!(b18_2024.has_logo);
         assert!(by_pid(0x02A0).is_some());
         // the only logo-less model in the table

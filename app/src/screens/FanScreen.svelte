@@ -32,7 +32,7 @@
     <FanSpinner rpm={$avgRpm ?? 0} size={190} />
     <div class="live">
       <span class="big mono">{$avgRpm ?? '--'}</span>
-      <span class="card-label">measured rpm</span>
+      <span class="card-label">fan setpoint</span>
     </div>
     <div class="pair mono">
       {#each $telemetry?.fan_rpm ?? [] as r, i}
@@ -73,6 +73,9 @@
     <p class="hint">
       Manual mode pins both fans to a fixed speed. Auto returns control to the
       EC's thermal curve. Limits ({min}–{max} rpm) come from the model profile.
+      Razer laptops expose no live tachometer, so this is the EC's target
+      speed, not a moving measurement — it holds steady until the mode or
+      curve changes.
     </p>
   </div>
 </div>

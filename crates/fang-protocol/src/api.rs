@@ -245,7 +245,9 @@ pub struct Telemetry {
     /// GPU power draw in watts (NVML), when the GPU is awake.
     #[serde(default)]
     pub gpu_power_w: Option<f32>,
-    /// Measured RPM per fan (empty when unreadable).
+    /// EC fan-speed setpoint per fan — Razer laptops expose no live
+    /// tachometer, so this is the target, not a measurement. Empty when
+    /// unreadable.
     pub fan_rpm: Vec<u32>,
     pub ts_ms: u64,
 }
