@@ -4,6 +4,18 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-07-07 — Power-source automation
+
+### Added
+- **Power-source automation** on the Performance screen: automatically apply a
+  performance profile when AC power is connected or removed. Each source
+  (AC / battery) maps to a profile — Silent / Balanced / Creator / Gaming — plus
+  an independent fan choice: follow the mode's own curve, or pin the fans quiet.
+  The daemon reads the AC adapter from `/sys/class/power_supply` (matching the
+  `Mains` supply type, so USB-C PD and the battery are ignored) and applies the
+  mapped profile on each transition, including at startup. The live source is
+  shown with a "now" badge. Off by default.
+
 ## [0.6.0] — 2026-07-06 — External-monitor brightness
 
 ### Added
@@ -129,6 +141,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.7.0]: https://github.com/solomonmorse/fang/releases/tag/v0.7.0
 [0.6.0]: https://github.com/solomonmorse/fang/releases/tag/v0.6.0
 [0.5.0]: https://github.com/solomonmorse/fang/releases/tag/v0.5.0
 [0.4.0]: https://github.com/solomonmorse/fang/releases/tag/v0.4.0

@@ -2,6 +2,21 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.7.0',
+      date: '2026-07-07',
+      title: 'Power-source automation',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'Auto-switch the performance profile when you plug in or unplug (AC ↔ battery).',
+            "A profile per source, plus an independent fan choice — the mode's curve, or pinned quiet.",
+            'Reads the AC adapter from sysfs; live source shown with a "now" badge. Off by default.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.6.0',
       date: '2026-07-06',
       title: 'External-monitor brightness',
