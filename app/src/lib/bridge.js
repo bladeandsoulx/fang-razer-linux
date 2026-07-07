@@ -125,6 +125,15 @@ export async function setMonitorBrightness(value) {
   }
 }
 
+/** AC/battery perf-profile automation: enable + the profile for each source. */
+export async function setAutoPower(enabled, acProfile, batteryProfile) {
+  if (invoke) {
+    status.set(await invoke('set_auto_power', { enabled, acProfile, batteryProfile }));
+  } else {
+    sim.setAutoPower(enabled, acProfile, batteryProfile);
+  }
+}
+
 // ---------------------------------------------------------------- simulator
 
 const sim = {
@@ -157,6 +166,9 @@ const sim = {
     ],
     color_current: 0x04,
     monitor_brightness: 75,
+    auto_power: false,
+    ac_profile: 'balanced',
+    battery_profile: 'silent',
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -173,6 +185,7 @@ const sim = {
   cpu: 52,
   gpu: 46,
   rpm: [2300, 2280],
+  onAc: true,
   t: 0,
 
   targets() {
@@ -212,6 +225,7 @@ const sim = {
       gpu_temp_c: this.gpu,
       cpu_power_w: watts[0] + wiggle * 1.5,
       gpu_power_w: watts[1] + wiggle * 2,
+      on_ac: this.onAc,
       fan_rpm: this.rpm.map((r) => Math.round(r)),
       ts_ms: Date.now()
     });
@@ -272,6 +286,15 @@ const sim = {
 
   setMonitorBrightness(value) {
     this.state.monitor_brightness = Math.min(100, Math.max(0, value));
+    this.push();
+  },
+
+  setAutoPower(enabled, acProfile, batteryProfile) {
+    this.state.auto_power = enabled;
+    this.state.ac_profile = acProfile;
+    this.state.battery_profile = batteryProfile;
+    // Mirror the daemon: enabling enforces the current source's profile.
+    if (enabled) this.state.perf_mode = this.onAc ? acProfile : batteryProfile;
     this.push();
   },
 

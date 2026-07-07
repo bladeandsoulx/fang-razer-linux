@@ -154,6 +154,13 @@ pub enum Command {
     SetMonitorBrightness {
         value: u8,
     },
+    /// Toggle automatic perf-profile switching on AC ↔ battery transitions,
+    /// and set the profile applied for each power source.
+    SetAutoPower {
+        enabled: bool,
+        ac_profile: PerfMode,
+        battery_profile: PerfMode,
+    },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
@@ -235,6 +242,12 @@ pub struct Status {
     /// External monitor's brightness (VCP 0x10) as a 0..=100 percent. None
     /// when no monitor, or the monitor doesn't expose luminance over DDC/CI.
     pub monitor_brightness: Option<u8>,
+    /// Automatically switch perf profile when AC power is connected/removed.
+    pub auto_power: bool,
+    /// Profile applied when on AC (meaningful when `auto_power`).
+    pub ac_profile: PerfMode,
+    /// Profile applied when on battery (meaningful when `auto_power`).
+    pub battery_profile: PerfMode,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a
@@ -253,6 +266,10 @@ pub struct Telemetry {
     /// GPU power draw in watts (NVML), when the GPU is awake.
     #[serde(default)]
     pub gpu_power_w: Option<f32>,
+    /// True on AC, false on battery, None when no AC adapter is exposed
+    /// (desktop, or unreadable).
+    #[serde(default)]
+    pub on_ac: Option<bool>,
     /// EC fan-speed setpoint per fan — Razer laptops expose no live
     /// tachometer, so this is the target, not a measurement. Empty when
     /// unreadable.
@@ -312,6 +329,7 @@ mod tests {
             gpu_temp_c: None,
             cpu_power_w: Some(28.4),
             gpu_power_w: None,
+            on_ac: Some(true),
             fan_rpm: vec![2300, 2280],
             ts_ms: 12,
         });

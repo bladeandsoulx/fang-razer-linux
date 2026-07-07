@@ -35,12 +35,14 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
             .unwrap_or(false);
         last_wall = now;
 
+        let on_ac = crate::power::on_ac();
         let mut core = core.lock().await;
         if jumped {
             log::info!("wall clock jump detected (resume from suspend); reapplying state");
             core.reapply();
         }
         let s = core.sample();
+        let auto_status = core.power_tick(on_ac);
         drop(core);
 
         let telemetry = Telemetry {
@@ -48,6 +50,7 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
             gpu_temp_c: s.gpu_temp_c,
             cpu_power_w: s.cpu_power_w,
             gpu_power_w: s.gpu_power_w,
+            on_ac,
             fan_rpm: s.fan_rpm,
             ts_ms: now
                 .duration_since(UNIX_EPOCH)
@@ -55,6 +58,10 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
                 .as_millis() as u64,
         };
         let _ = bus.send(event_line(&Event::Telemetry(telemetry)));
+        // A power-source transition may have auto-switched the profile.
+        if let Some(status) = auto_status {
+            let _ = bus.send(event_line(&Event::StateChanged(status)));
+        }
     }
 }
 
@@ -101,7 +108,8 @@ where
                     | Command::SetBho { .. }
                     | Command::SetLighting { .. }
                     | Command::SetColorPreset { .. }
-                    | Command::SetMonitorBrightness { .. }) => {
+                    | Command::SetMonitorBrightness { .. }
+                    | Command::SetAutoPower { .. }) => {
                         let mut core = core.lock().await;
                         match core.handle_set(cmd) {
                             Ok(changed) => {

@@ -1,7 +1,7 @@
 <script>
   import ModeCard from '../lib/components/ModeCard.svelte';
-  import { status } from '../lib/stores.js';
-  import { setPerfMode } from '../lib/bridge.js';
+  import { status, telemetry } from '../lib/stores.js';
+  import { setPerfMode, setAutoPower } from '../lib/bridge.js';
 
   const MODES = [
     { mode: 'silent', title: 'Silent', icon: 'power', blurb: 'Lowest fan noise, capped power. For late nights and libraries.' },
@@ -30,6 +30,33 @@
 
   function setGpu(level) {
     setPerfMode('custom', $status?.cpu_boost, level);
+  }
+
+  // ---- power-source automation -------------------------------------------
+  const AUTO_MODES = [
+    { mode: 'silent', title: 'Silent' },
+    { mode: 'balanced', title: 'Balanced' },
+    { mode: 'creator', title: 'Creator' },
+    { mode: 'gaming', title: 'Gaming' }
+  ];
+  $: autoModes =
+    $status?.has_creator_mode === false
+      ? AUTO_MODES.filter((m) => m.mode !== 'creator')
+      : AUTO_MODES;
+
+  $: auto = $status?.auto_power ?? false;
+  $: acProfile = $status?.ac_profile ?? 'balanced';
+  $: batteryProfile = $status?.battery_profile ?? 'silent';
+  $: source = $telemetry?.on_ac == null ? null : $telemetry.on_ac ? 'ac' : 'battery';
+
+  function toggleAuto(on) {
+    setAutoPower(on, acProfile, batteryProfile);
+  }
+  function pickAc(mode) {
+    setAutoPower(auto, mode, batteryProfile);
+  }
+  function pickBattery(mode) {
+    setAutoPower(auto, acProfile, mode);
   }
 </script>
 
@@ -68,6 +95,46 @@
     {/if}
   </div>
 {/if}
+
+<div class="auto card rise">
+  <div class="auto-head">
+    <div class="lbl">
+      <span class="card-label">Power automation</span>
+      <p class="sub">Switch profile automatically when you plug in or unplug.</p>
+    </div>
+    <div class="seg">
+      <button class:on={!auto} on:click={() => toggleAuto(false)}>Off</button>
+      <button class:on={auto} on:click={() => toggleAuto(true)}>On</button>
+    </div>
+  </div>
+
+  <div class="rules" class:off={!auto}>
+    <div class="rule">
+      <span class="src">
+        On AC
+        {#if source === 'ac'}<em class="cur">now</em>{/if}
+      </span>
+      <div class="seg">
+        {#each autoModes as m}
+          <button class:on={acProfile === m.mode} on:click={() => pickAc(m.mode)}>{m.title}</button>
+        {/each}
+      </div>
+    </div>
+    <div class="rule">
+      <span class="src">
+        On battery
+        {#if source === 'battery'}<em class="cur">now</em>{/if}
+      </span>
+      <div class="seg">
+        {#each autoModes as m}
+          <button class:on={batteryProfile === m.mode} on:click={() => pickBattery(m.mode)}>
+            {m.title}
+          </button>
+        {/each}
+      </div>
+    </div>
+  </div>
+</div>
 
 <style>
   .cards {
@@ -133,5 +200,69 @@
     width: 100%;
     font-size: 11.5px;
     color: var(--amber);
+  }
+
+  .auto {
+    margin-top: 16px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .auto-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .lbl .sub {
+    margin-top: 6px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-dim);
+    max-width: 44ch;
+  }
+
+  .rules {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: opacity 0.2s ease;
+  }
+
+  .rules.off {
+    opacity: 0.4;
+  }
+
+  .rule {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .src {
+    min-width: 96px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  .cur {
+    font-style: normal;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--green);
+    border: 1px solid var(--green-dim);
+    border-radius: 4px;
+    padding: 1px 6px;
+    text-shadow: 0 0 8px var(--green-glow);
   }
 </style>

@@ -22,6 +22,21 @@ pub struct AppliedState {
     pub kbd_effect: KbdEffect,
     #[serde(default = "default_logo")]
     pub logo_led: LogoMode,
+    /// Auto-switch perf profile on AC ↔ battery transitions.
+    #[serde(default)]
+    pub auto_power: bool,
+    #[serde(default = "default_ac_profile")]
+    pub ac_profile: PerfMode,
+    #[serde(default = "default_battery_profile")]
+    pub battery_profile: PerfMode,
+}
+
+fn default_ac_profile() -> PerfMode {
+    PerfMode::Balanced
+}
+
+fn default_battery_profile() -> PerfMode {
+    PerfMode::Silent
 }
 
 fn default_bho_threshold() -> u8 {
@@ -57,6 +72,9 @@ impl Default for AppliedState {
             kbd_brightness: default_brightness(),
             kbd_effect: default_kbd_effect(),
             logo_led: default_logo(),
+            auto_power: false,
+            ac_profile: default_ac_profile(),
+            battery_profile: default_battery_profile(),
         }
     }
 }

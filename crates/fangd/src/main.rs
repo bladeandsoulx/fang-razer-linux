@@ -2,6 +2,7 @@ mod core;
 mod ddc;
 mod gpu;
 mod hw;
+mod power;
 mod server;
 mod state;
 

@@ -137,6 +137,23 @@ async fn set_monitor_brightness(client: State<'_, Client>, value: u8) -> Result<
         .await
 }
 
+/// Toggle AC/battery perf-profile automation and set the per-source profiles.
+#[tauri::command]
+async fn set_auto_power(
+    client: State<'_, Client>,
+    enabled: bool,
+    ac_profile: PerfMode,
+    battery_profile: PerfMode,
+) -> Result<Value, String> {
+    client
+        .request(Command::SetAutoPower {
+            enabled,
+            ac_profile,
+            battery_profile,
+        })
+        .await
+}
+
 #[tauri::command]
 fn set_refresh_rate(hz: u32) -> Result<display::DisplayInfo, String> {
     display::set(hz)
@@ -289,6 +306,7 @@ fn main() {
             set_lighting,
             set_color_preset,
             set_monitor_brightness,
+            set_auto_power,
             open_url,
             get_display,
             set_refresh_rate,
