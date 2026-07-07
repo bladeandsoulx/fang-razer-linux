@@ -155,11 +155,15 @@ pub enum Command {
         value: u8,
     },
     /// Toggle automatic perf-profile switching on AC ↔ battery transitions,
-    /// and set the profile applied for each power source.
+    /// and set the profile + fan applied for each power source.
     SetAutoPower {
         enabled: bool,
         ac_profile: PerfMode,
         battery_profile: PerfMode,
+        /// Fan applied on AC (Auto follows the mode's curve; Manual pins it).
+        ac_fan: FanMode,
+        /// Fan applied on battery.
+        battery_fan: FanMode,
     },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
@@ -248,6 +252,10 @@ pub struct Status {
     pub ac_profile: PerfMode,
     /// Profile applied when on battery (meaningful when `auto_power`).
     pub battery_profile: PerfMode,
+    /// Fan applied on AC alongside `ac_profile` (Auto = the mode's own curve).
+    pub ac_fan: FanMode,
+    /// Fan applied on battery alongside `battery_profile`.
+    pub battery_fan: FanMode,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
     /// True when the GPU mode was changed this boot and needs a

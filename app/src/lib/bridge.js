@@ -125,12 +125,20 @@ export async function setMonitorBrightness(value) {
   }
 }
 
-/** AC/battery perf-profile automation: enable + the profile for each source. */
-export async function setAutoPower(enabled, acProfile, batteryProfile) {
+/** AC/battery automation: enable + the profile and fan for each source. */
+export async function setAutoPower(enabled, acProfile, batteryProfile, acFan, batteryFan) {
   if (invoke) {
-    status.set(await invoke('set_auto_power', { enabled, acProfile, batteryProfile }));
+    status.set(
+      await invoke('set_auto_power', {
+        enabled,
+        acProfile,
+        batteryProfile,
+        acFan,
+        batteryFan
+      })
+    );
   } else {
-    sim.setAutoPower(enabled, acProfile, batteryProfile);
+    sim.setAutoPower(enabled, acProfile, batteryProfile, acFan, batteryFan);
   }
 }
 
@@ -169,6 +177,8 @@ const sim = {
     auto_power: false,
     ac_profile: 'balanced',
     battery_profile: 'silent',
+    ac_fan: { mode: 'auto' },
+    battery_fan: { mode: 'auto' },
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
     daemon_version: '0.1.0-sim'
@@ -289,12 +299,17 @@ const sim = {
     this.push();
   },
 
-  setAutoPower(enabled, acProfile, batteryProfile) {
+  setAutoPower(enabled, acProfile, batteryProfile, acFan, batteryFan) {
     this.state.auto_power = enabled;
     this.state.ac_profile = acProfile;
     this.state.battery_profile = batteryProfile;
-    // Mirror the daemon: enabling enforces the current source's profile.
-    if (enabled) this.state.perf_mode = this.onAc ? acProfile : batteryProfile;
+    this.state.ac_fan = acFan;
+    this.state.battery_fan = batteryFan;
+    // Mirror the daemon: enabling enforces the current source's profile + fan.
+    if (enabled) {
+      this.state.perf_mode = this.onAc ? acProfile : batteryProfile;
+      this.state.fan = this.onAc ? acFan : batteryFan;
+    }
     this.push();
   },
 

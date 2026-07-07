@@ -64,6 +64,8 @@ impl Core {
             auto_power: self.state.auto_power,
             ac_profile: self.state.ac_profile,
             battery_profile: self.state.battery_profile,
+            ac_fan: self.state.ac_fan,
+            battery_fan: self.state.battery_fan,
             gpu_mode: self.gpu.current(),
             gpu_mode_pending: self.gpu.pending(),
             daemon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -81,9 +83,22 @@ impl Core {
         }
     }
 
+    /// Clamp a manual fan speed into the model's limits; Auto passes through.
+    fn clamp_fan(&self, fan: FanMode) -> FanMode {
+        match fan {
+            FanMode::Manual { rpm } => {
+                let info = self.hw.info();
+                FanMode::Manual {
+                    rpm: rpm.clamp(info.fan_rpm_min, info.fan_rpm_max),
+                }
+            }
+            FanMode::Auto => FanMode::Auto,
+        }
+    }
+
     /// Fed the current power source each telemetry tick. When automation is on
     /// and the source just changed (including the first known reading), applies
-    /// the mapped profile and returns the new status to broadcast.
+    /// that source's profile + fan and returns the new status to broadcast.
     pub fn power_tick(&mut self, on_ac: Option<bool>) -> Option<Status> {
         let changed = on_ac != self.last_on_ac;
         self.last_on_ac = on_ac;
@@ -91,22 +106,24 @@ impl Core {
             return None;
         }
         let on_ac = on_ac?;
-        let mode = if on_ac {
-            self.state.ac_profile
+        let (mode, fan) = if on_ac {
+            (self.state.ac_profile, self.state.ac_fan)
         } else {
-            self.state.battery_profile
+            (self.state.battery_profile, self.state.battery_fan)
         };
-        // Never send an undefined EC mode; don't re-apply what's already set.
+        // Never send an undefined EC mode.
         if mode == PerfMode::Creator && !self.hw.info().has_creator_mode {
-            return None;
-        }
-        if self.state.perf_mode == mode {
             return None;
         }
         let mut next = self.state;
         next.perf_mode = mode;
         if next.cpu_boost == Boost::Boost && !self.hw.info().has_cpu_boost_oc {
             next.cpu_boost = Boost::High;
+        }
+        next.fan = self.clamp_fan(fan);
+        // Nothing to do if this source's profile is already in effect.
+        if next.perf_mode == self.state.perf_mode && next.fan == self.state.fan {
+            return None;
         }
         if let Err(e) = self.hw.apply(&next) {
             log::warn!("power automation: applying {mode:?} failed: {e}");
@@ -115,8 +132,9 @@ impl Core {
         self.state = next;
         self.state.save(&self.state_path);
         log::info!(
-            "power automation: now on {} — switched to {mode:?}",
-            if on_ac { "AC" } else { "battery" }
+            "power automation: now on {} — {mode:?}, fan {:?}",
+            if on_ac { "AC" } else { "battery" },
+            next.fan
         );
         Some(self.status())
     }
@@ -203,17 +221,26 @@ impl Core {
                 enabled,
                 ac_profile,
                 battery_profile,
+                ac_fan,
+                battery_fan,
             } => {
                 next.auto_power = *enabled;
                 next.ac_profile = *ac_profile;
                 next.battery_profile = *battery_profile;
+                next.ac_fan = self.clamp_fan(*ac_fan);
+                next.battery_fan = self.clamp_fan(*battery_fan);
                 // Enabling enforces the policy right away for the current
                 // source; otherwise it takes effect on the next transition.
                 if *enabled {
                     if let Some(on_ac) = self.last_on_ac {
-                        let mode = if on_ac { *ac_profile } else { *battery_profile };
+                        let (mode, fan) = if on_ac {
+                            (*ac_profile, next.ac_fan)
+                        } else {
+                            (*battery_profile, next.battery_fan)
+                        };
                         if mode != PerfMode::Creator || self.hw.info().has_creator_mode {
                             next.perf_mode = mode;
+                            next.fan = fan;
                         }
                     }
                 }

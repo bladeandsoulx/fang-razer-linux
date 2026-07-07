@@ -144,12 +144,16 @@ async fn set_auto_power(
     enabled: bool,
     ac_profile: PerfMode,
     battery_profile: PerfMode,
+    ac_fan: FanMode,
+    battery_fan: FanMode,
 ) -> Result<Value, String> {
     client
         .request(Command::SetAutoPower {
             enabled,
             ac_profile,
             battery_profile,
+            ac_fan,
+            battery_fan,
         })
         .await
 }

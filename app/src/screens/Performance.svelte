@@ -47,17 +47,30 @@
   $: auto = $status?.auto_power ?? false;
   $: acProfile = $status?.ac_profile ?? 'balanced';
   $: batteryProfile = $status?.battery_profile ?? 'silent';
+  $: acFan = $status?.ac_fan ?? { mode: 'auto' };
+  $: batteryFan = $status?.battery_fan ?? { mode: 'auto' };
+  $: acFanQuiet = acFan?.mode === 'manual';
+  $: batteryFanQuiet = batteryFan?.mode === 'manual';
   $: source = $telemetry?.on_ac == null ? null : $telemetry.on_ac ? 'ac' : 'battery';
+  $: quietRpm = $status?.fan_rpm_min ?? 2200;
 
-  function toggleAuto(on) {
-    setAutoPower(on, acProfile, batteryProfile);
+  const fanFor = (kind) => (kind === 'quiet' ? { mode: 'manual', rpm: quietRpm } : { mode: 'auto' });
+
+  // Merge one field into the current config and re-send the whole thing.
+  function commit(patch) {
+    setAutoPower(
+      patch.enabled ?? auto,
+      patch.ac ?? acProfile,
+      patch.battery ?? batteryProfile,
+      patch.acFan ?? acFan,
+      patch.batteryFan ?? batteryFan
+    );
   }
-  function pickAc(mode) {
-    setAutoPower(auto, mode, batteryProfile);
-  }
-  function pickBattery(mode) {
-    setAutoPower(auto, acProfile, mode);
-  }
+  const toggleAuto = (on) => commit({ enabled: on });
+  const pickAc = (mode) => commit({ ac: mode });
+  const pickBattery = (mode) => commit({ battery: mode });
+  const pickAcFan = (kind) => commit({ acFan: fanFor(kind) });
+  const pickBatteryFan = (kind) => commit({ batteryFan: fanFor(kind) });
 </script>
 
 <div class="cards">
@@ -114,10 +127,19 @@
         On AC
         {#if source === 'ac'}<em class="cur">now</em>{/if}
       </span>
-      <div class="seg">
-        {#each autoModes as m}
-          <button class:on={acProfile === m.mode} on:click={() => pickAc(m.mode)}>{m.title}</button>
-        {/each}
+      <div class="opts">
+        <div class="seg">
+          {#each autoModes as m}
+            <button class:on={acProfile === m.mode} on:click={() => pickAc(m.mode)}>{m.title}</button>
+          {/each}
+        </div>
+        <div class="fanpick">
+          <span class="fanlbl">fan</span>
+          <div class="seg">
+            <button class:on={!acFanQuiet} on:click={() => pickAcFan('auto')}>Auto</button>
+            <button class:on={acFanQuiet} on:click={() => pickAcFan('quiet')}>Quiet</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="rule">
@@ -125,12 +147,21 @@
         On battery
         {#if source === 'battery'}<em class="cur">now</em>{/if}
       </span>
-      <div class="seg">
-        {#each autoModes as m}
-          <button class:on={batteryProfile === m.mode} on:click={() => pickBattery(m.mode)}>
-            {m.title}
-          </button>
-        {/each}
+      <div class="opts">
+        <div class="seg">
+          {#each autoModes as m}
+            <button class:on={batteryProfile === m.mode} on:click={() => pickBattery(m.mode)}>
+              {m.title}
+            </button>
+          {/each}
+        </div>
+        <div class="fanpick">
+          <span class="fanlbl">fan</span>
+          <div class="seg">
+            <button class:on={!batteryFanQuiet} on:click={() => pickBatteryFan('auto')}>Auto</button>
+            <button class:on={batteryFanQuiet} on:click={() => pickBatteryFan('quiet')}>Quiet</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -238,9 +269,30 @@
 
   .rule {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .opts {
+    display: flex;
+    gap: 14px;
     flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .fanpick {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fanlbl {
+    font-family: var(--font-data);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
   }
 
   .src {

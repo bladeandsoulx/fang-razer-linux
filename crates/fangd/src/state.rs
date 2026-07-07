@@ -29,6 +29,11 @@ pub struct AppliedState {
     pub ac_profile: PerfMode,
     #[serde(default = "default_battery_profile")]
     pub battery_profile: PerfMode,
+    /// Fan applied for each source when automation switches (Auto = mode curve).
+    #[serde(default = "default_fan")]
+    pub ac_fan: FanMode,
+    #[serde(default = "default_fan")]
+    pub battery_fan: FanMode,
 }
 
 fn default_ac_profile() -> PerfMode {
@@ -37,6 +42,10 @@ fn default_ac_profile() -> PerfMode {
 
 fn default_battery_profile() -> PerfMode {
     PerfMode::Silent
+}
+
+fn default_fan() -> FanMode {
+    FanMode::Auto
 }
 
 fn default_bho_threshold() -> u8 {
@@ -75,6 +84,8 @@ impl Default for AppliedState {
             auto_power: false,
             ac_profile: default_ac_profile(),
             battery_profile: default_battery_profile(),
+            ac_fan: default_fan(),
+            battery_fan: default_fan(),
         }
     }
 }
