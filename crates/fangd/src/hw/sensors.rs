@@ -16,12 +16,23 @@ pub struct Readings {
 
 pub struct Sensors {
     cpu_temp_file: Option<PathBuf>,
-    // One NVML session for the daemon's lifetime. Do NOT cycle
-    // init/shutdown per sample: rapid nvmlInit/nvmlShutdown at 1 Hz can
-    // livelock inside the NVIDIA driver and wedge the whole daemon.
-    nvml: Option<nvml_wrapper::Nvml>,
+    nvml: NvmlState,
     nvidia_pm_dir: Option<PathBuf>,
     rapl: Option<Rapl>,
+}
+
+/// NVML session, created lazily the first time the dGPU is seen awake:
+/// nvmlInit can itself wake a runtime-suspended card, so we don't initialize
+/// at startup. Once created it is held for the daemon's lifetime — never
+/// cycled, because rapid nvmlInit/nvmlShutdown at 1 Hz can livelock the NVIDIA
+/// driver and wedge the daemon.
+enum NvmlState {
+    /// Not initialized yet (and won't be until the card is seen awake).
+    Untried,
+    /// Boxed to keep the enum small — the other variants are empty.
+    Ready(Box<nvml_wrapper::Nvml>),
+    /// Init was attempted and failed (no driver); don't retry every tick.
+    Unavailable,
 }
 
 /// CPU package power via the RAPL energy counter (root-readable). Power is
@@ -90,20 +101,16 @@ impl Sensors {
             Some(p) => log::info!("cpu temp source: {}", p.display()),
             None => log::warn!("no coretemp/k10temp hwmon found; cpu temp unavailable"),
         }
-        let nvml = match nvml_wrapper::Nvml::init() {
-            Ok(n) => {
-                log::info!("NVML initialized (nvidia gpu telemetry available)");
-                Some(n)
-            }
-            Err(e) => {
-                log::info!("NVML unavailable ({e}); gpu temp disabled");
-                None
-            }
-        };
+        let nvidia_pm_dir = find_nvidia_pm_dir();
+        if nvidia_pm_dir.is_some() {
+            log::info!("nvidia dGPU present; NVML init deferred until the card is awake");
+        }
         Sensors {
             cpu_temp_file,
-            nvml,
-            nvidia_pm_dir: find_nvidia_pm_dir(),
+            // Deferred: initialized on the first sample taken while the card is
+            // awake, so neither startup nor sampling wakes a suspended dGPU.
+            nvml: NvmlState::Untried,
+            nvidia_pm_dir,
             rapl: Rapl::discover(),
         }
     }
@@ -116,45 +123,66 @@ impl Sensors {
             .and_then(|s| s.trim().parse::<f32>().ok())
             .map(|milli| milli / 1000.0);
         let cpu_power_w = self.rapl.as_mut().and_then(Rapl::read_watts);
-        let (gpu_temp_c, gpu_power_w) = self
-            .nvml
-            .as_ref()
-            .and_then(|nvml| {
-                // Gate each query on sysfs runtime-PM state (free to read,
-                // never wakes the card): querying a GPU once a second would
-                // wake it and reset its autosuspend timer, keeping it out of
-                // RTD3 forever. With fine-grained power management the idle
-                // NVML session itself doesn't pin the card — only queries do.
-                if let Some(dir) = &self.nvidia_pm_dir {
-                    let read = |f: &str| {
-                        fs::read_to_string(dir.join(f))
-                            .unwrap_or_default()
-                            .trim()
-                            .to_string()
-                    };
-                    if !should_query_gpu(
-                        &read("control"),
-                        &read("runtime_status"),
-                        &read("runtime_usage"),
-                    ) {
-                        return None;
-                    }
-                }
-                let dev = nvml.device_by_index(0).ok()?;
-                let temp = dev
-                    .temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)
-                    .ok()
-                    .map(|t| t as f32);
-                let power = dev.power_usage().ok().map(|mw| mw as f32 / 1000.0);
-                Some((temp, power))
-            })
-            .unwrap_or((None, None));
+        let (gpu_temp_c, gpu_power_w) = self.gpu_reading();
         Readings {
             cpu_temp_c,
             gpu_temp_c,
             cpu_power_w,
             gpu_power_w,
         }
+    }
+
+    /// dGPU temperature and power via NVML — but only when sysfs runtime-PM
+    /// says the card is awake for another user, and only after lazily creating
+    /// the NVML session (see [`NvmlState`]). Returns `(None, None)` while the
+    /// card is suspended, so neither sampling nor init ever wakes it or blocks
+    /// RTD3.
+    fn gpu_reading(&mut self) -> (Option<f32>, Option<f32>) {
+        // Gate on runtime-PM state (free to read, never wakes the card):
+        // querying once a second would wake the GPU and reset its autosuspend
+        // timer, keeping it out of RTD3 forever.
+        if let Some(dir) = &self.nvidia_pm_dir {
+            let read = |f: &str| {
+                fs::read_to_string(dir.join(f))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string()
+            };
+            if !should_query_gpu(
+                &read("control"),
+                &read("runtime_status"),
+                &read("runtime_usage"),
+            ) {
+                return (None, None);
+            }
+        }
+        // Card is awake (or ungated because no pm dir was found): ensure the
+        // NVML session exists, creating it now on first use so init itself
+        // never wakes a suspended card.
+        if let NvmlState::Untried = self.nvml {
+            self.nvml = match nvml_wrapper::Nvml::init() {
+                Ok(n) => {
+                    log::info!("NVML initialized (nvidia gpu telemetry available)");
+                    NvmlState::Ready(Box::new(n))
+                }
+                Err(e) => {
+                    log::info!("NVML unavailable ({e}); gpu telemetry disabled");
+                    NvmlState::Unavailable
+                }
+            };
+        }
+        let NvmlState::Ready(nvml) = &self.nvml else {
+            return (None, None);
+        };
+        let Ok(dev) = nvml.device_by_index(0) else {
+            return (None, None);
+        };
+        let temp = dev
+            .temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)
+            .ok()
+            .map(|t| t as f32);
+        let power = dev.power_usage().ok().map(|mw| mw as f32 / 1000.0);
+        (temp, power)
     }
 }
 
@@ -237,5 +265,30 @@ mod tests {
     fn gpu_in_use_by_others_is_queried() {
         assert!(should_query_gpu("auto", "active", "1"));
         assert!(should_query_gpu("auto", "active", "not-a-number"));
+    }
+
+    #[test]
+    fn suspended_card_is_never_queried_and_nvml_stays_lazy() {
+        use super::{NvmlState, Sensors};
+        use std::fs;
+        // Fake sysfs power dir reporting the dGPU runtime-suspended.
+        let dir = std::env::temp_dir().join("fangd-rtd3-lazy-test");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("control"), "auto\n").unwrap();
+        fs::write(dir.join("runtime_status"), "suspended\n").unwrap();
+        fs::write(dir.join("runtime_usage"), "0\n").unwrap();
+        let mut s = Sensors {
+            cpu_temp_file: None,
+            nvml: NvmlState::Untried,
+            nvidia_pm_dir: Some(dir.clone()),
+            rapl: None,
+        };
+        let r = s.read();
+        fs::remove_dir_all(&dir).ok();
+        assert_eq!(r.gpu_temp_c, None, "suspended card must report no temp");
+        assert!(
+            matches!(s.nvml, NvmlState::Untried),
+            "NVML must not be initialized while the card is suspended"
+        );
     }
 }
