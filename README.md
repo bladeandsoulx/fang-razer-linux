@@ -6,16 +6,25 @@ Performance modes, fan control and live thermals — no Windows required.
 - 🎛 **Performance modes** — Silent / Balanced / Creator / Gaming, plus Custom
   with per-CPU/GPU power levels (including CPU overclock boost on supported
   models)
+- 🔌 **Power automation** — auto-switch to a chosen profile when you plug in or
+  unplug, with an independent fan choice (mode curve or pinned-quiet) per source
 - 🌀 **Fan control** — automatic EC curve or manual RPM, clamped to per-model
   safe limits
+- 🔋 **Battery Health Optimizer** — Synapse-style charge limiter (50–80 %) to
+  slow battery wear, on models that support it
+- 🎹 **Lighting** — keyboard backlight brightness, hardware effects (Static RGB
+  / Spectrum / Wave) and the lid logo LED (Static / Breathing)
 - 🖼 **GPU mode** — Integrated / Hybrid / dGPU switching via `prime-select`
   or `envycontrol` (the Linux equivalent of Synapse's GPU mode; applies at
   next logout/reboot)
-- ⚡ **Refresh rate** — switch the internal panel's Hz instantly
-  (kscreen-doctor or xrandr; GNOME Wayland users: Settings → Displays)
-- 🎨 **Color profiles** — Native / sRGB / Adobe RGB / Rec. 709 via colord's
-  standard ICC profiles (applied by GNOME/KDE color management)
-- 📊 **Live dashboard** — CPU/GPU temperatures, fan RPM, 90-second history
+- ⚡ **Refresh rate** — switch the active display's Hz instantly, on GNOME
+  (Wayland or Xorg, via Mutter), KDE (kscreen-doctor) or bare X11 (xrandr)
+- 🎨 **Display color & brightness** — color-temperature presets and a brightness
+  slider for a DDC/CI external monitor (VCP 0x14 / 0x10), plus internal-panel
+  backlight brightness (the wide-gamut laptop panel itself has no color-managed
+  gamut clamp on Linux)
+- 📊 **Live dashboard** — CPU/GPU temperatures and power draw, fan RPM,
+  90-second history
 - 🖥 **Tray + autostart** — quick mode switching from the system tray
 - 🔁 Settings persist and are re-applied after reboot and suspend/resume
 
@@ -50,6 +59,21 @@ sudo ./packaging/install.sh
 The script installs build dependencies, builds and enables the `fangd`
 service, builds the app `.deb`, and adds you to the `fang` group
 (log out and back in once for group membership to apply).
+
+### Prebuilt packages
+
+Each [release](https://github.com/solomonmorse/fang/releases) attaches two
+`.deb`s — the `fangd` daemon and the app. After installing both, add yourself
+to the `fang` group so the app can reach the daemon socket, then log out and
+back in:
+
+```sh
+sudo apt install ./fangd_*.deb ./fang_*.deb
+sudo usermod -aG fang "$USER"   # then log out and back in
+```
+
+Without the group step the app just shows "daemon offline" — the socket is
+`root:fang` and only the daemon runs as root.
 
 ## Supported hardware
 

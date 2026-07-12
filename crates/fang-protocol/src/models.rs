@@ -298,7 +298,7 @@ pub const MODELS: &[LaptopModel] = &[
     },
     LaptopModel {
         pid: 0x026A,
-        name: "Razer Razer Book 13 2020",
+        name: "Razer Book 13 2020",
         fan_rpm_min: 3500,
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,

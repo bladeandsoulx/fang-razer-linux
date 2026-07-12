@@ -43,7 +43,7 @@ body:
         - label: Custom mode boosts (step 6)
         - label: GPU mode switching (step 6b)
         - label: Refresh rate switching (step 6b)
-        - label: Color profiles (step 6c)
+        - label: Display color & brightness (step 6c)
         - label: Persistence across restart/suspend (step 7)
   - type: textarea
     id: notes

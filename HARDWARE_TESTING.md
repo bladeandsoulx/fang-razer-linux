@@ -76,18 +76,27 @@ envelope, but back off if you're uncomfortable.
   `prime-select query` reflects it, reboot, confirm `nvidia-smi` fails (dGPU
   off) and battery drain drops. Switch back to Hybrid the same way. The UI
   shows an amber "staged" banner until the reboot.
-- **Refresh rate** applies instantly. On KDE or X11 sessions switch
-  240 → 60 Hz and back; cursor motion makes the change obvious. On GNOME
-  Wayland the screen shows a pointer to Settings → Displays instead (mutter
-  API not wired up in v1).
+- **Refresh rate** applies instantly to the active display. Switch 240 → 60 Hz
+  and back; cursor motion makes the change obvious. Works on GNOME (Wayland or
+  Xorg, via the Mutter DisplayConfig API), KDE (`kscreen-doctor`) and bare X11
+  (`xrandr`) — the app picks whichever is present.
 
-## 6c. Color profile
+## 6c. Display color & brightness
 
-Switch Native → sRGB on the GPU & Display screen; saturated reds/greens
-should visibly desaturate on the Blade's wide-gamut panel (compare a vivid
-wallpaper). `colormgr get-devices-by-kind display` shows the default profile
-change. Requires colord (preinstalled on Ubuntu desktop); bare X11 WMs also
-need `xiccd` running for profiles to take effect.
+These live on the **Lighting** screen and need `ddcutil` plus an external
+monitor with DDC/CI enabled in its on-screen menu (laptop eDP panels don't
+speak DDC/CI):
+
+- **External-monitor color temperature** — switch between the presets the
+  monitor advertises (Warm / sRGB·D65 / Neutral / Cool / Custom); the screen
+  should visibly warm or cool. `ddcutil getvcp 14` reflects the change.
+- **External-monitor brightness** — the luminance slider should dim/brighten
+  the panel; `ddcutil getvcp 10` tracks it.
+- **Internal-panel brightness** — the laptop-panel slider changes the built-in
+  screen's backlight instantly (through logind, no root); clamped to 5–100 %.
+
+The Blade's own wide-gamut panel has no color-managed gamut clamp on Linux, so
+there's no internal "sRGB profile" to test — the UI says as much.
 
 ## 6d. Battery Health Optimizer
 

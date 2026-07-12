@@ -106,7 +106,7 @@
         {/each}
       </div>
     </div>
-    <p class="dim note">Applies instantly to the internal panel; no reboot needed.</p>
+    <p class="dim note">Applies instantly to the active display; no reboot needed.</p>
   {:else if $display}
     <p>Refresh-rate switching isn't available here.</p>
     <p class="dim">{$display.hint}</p>
