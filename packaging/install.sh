@@ -10,6 +10,15 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REAL_USER="${SUDO_USER:-root}"
+USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+
+# Run a command as the invoking user with their Rust toolchain on PATH.
+# rustup installs cargo under ~/.cargo/bin, which sudo's secure_path drops —
+# so a plain `sudo -u user cargo` would fail to find cargo (and the Tauri
+# build shells out to cargo as well).
+run_user() {
+    sudo -u "$REAL_USER" env "PATH=$USER_HOME/.cargo/bin:$PATH" "$@"
+}
 
 echo "==> installing build dependencies"
 apt-get update
@@ -20,15 +29,15 @@ apt-get install -y --no-install-recommends \
     libayatana-appindicator3-dev \
     nodejs npm
 
-if ! command -v cargo >/dev/null; then
-    echo "==> rust toolchain not found; install rustup first:" >&2
+if ! run_user sh -c 'command -v cargo >/dev/null'; then
+    echo "==> rust toolchain not found for $REAL_USER; install rustup first:" >&2
     echo "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh" >&2
     exit 1
 fi
 
 echo "==> building fangd (release)"
 cd "$REPO_ROOT"
-sudo -u "$REAL_USER" cargo build --release -p fangd
+run_user cargo build --release -p fangd
 
 echo "==> installing fangd + systemd unit"
 install -Dm755 target/release/fangd /usr/bin/fangd
@@ -41,8 +50,8 @@ echo "==> fangd running: $(systemctl is-active fangd)"
 
 echo "==> building the Fang app (Tauri)"
 cd "$REPO_ROOT/app"
-sudo -u "$REAL_USER" npm install
-sudo -u "$REAL_USER" npm run tauri build
+run_user npm install
+run_user npm run tauri build
 DEB="$(ls -t src-tauri/target/release/bundle/deb/*.deb | head -1)"
 echo "==> installing $DEB"
 apt-get install -y "$DEB"
