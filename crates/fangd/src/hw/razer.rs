@@ -4,7 +4,7 @@ use super::{sensors::Sensors, Hw, ModelInfo, Sample};
 use crate::state::AppliedState;
 use fang_protocol::api::{Boost, FanMode, KbdEffect, LogoMode, PerfMode};
 use fang_protocol::models;
-use fang_protocol::packet::{self, Report, Zone, RAZER_VID, REPORT_LEN, ZONES};
+use fang_protocol::packet::{self, Report, RAZER_VID, REPORT_LEN, ZONES};
 use hidapi::{HidApi, HidDevice};
 use std::thread;
 use std::time::Duration;

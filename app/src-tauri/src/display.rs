@@ -249,7 +249,10 @@ mod backend {
         fn info(monitors: &[Monitor], logical: &[LogicalMonitor]) -> Option<DisplayInfo> {
             let conn = target(logical)?;
             let mon = monitors.iter().find(|m| m.id.connector == conn)?;
-            let cur = mon.modes.iter().find(|md| prop_bool(&md.props, "is-current"))?;
+            let cur = mon
+                .modes
+                .iter()
+                .find(|md| prop_bool(&md.props, "is-current"))?;
             let mut available: Vec<u32> = mon
                 .modes
                 .iter()

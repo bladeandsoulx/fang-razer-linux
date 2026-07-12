@@ -1,0 +1,7 @@
+# Pin the toolchain so `cargo fmt --check` and `cargo clippy -- -D warnings`
+# stay reproducible. A floating `stable` silently changes formatting rules and
+# adds lints, which turns CI red with no code change (it did — see 0.7.x). Bump
+# this deliberately, and reformat / fix new lints in the same commit.
+[toolchain]
+channel = "1.96.1"
+components = ["rustfmt", "clippy"]

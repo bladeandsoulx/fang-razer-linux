@@ -219,10 +219,13 @@ fn read_brightness(display: u8) -> (Option<u8>, u32) {
         return (None, 100);
     };
     // Tokens: "VCP" "10" "C" <cur> <max>; the decimals are [10, cur, max].
-    let nums: Vec<u32> = out.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+    let nums: Vec<u32> = out
+        .split_whitespace()
+        .filter_map(|t| t.parse().ok())
+        .collect();
     if let [.., cur, max] = nums[..] {
-        if max > 0 {
-            return (Some((cur * 100 / max).min(100) as u8), max);
+        if let Some(pct) = (cur * 100).checked_div(max) {
+            return (Some(pct.min(100) as u8), max);
         }
     }
     (None, 100)

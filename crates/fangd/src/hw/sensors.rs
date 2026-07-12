@@ -37,7 +37,10 @@ impl Rapl {
         for entry in fs::read_dir("/sys/class/powercap").ok()?.flatten() {
             let dir = entry.path();
             // Prefer the MSR-backed zone; skip the duplicate -mmio zone.
-            if dir.file_name().is_some_and(|n| n.to_string_lossy().contains("mmio")) {
+            if dir
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().contains("mmio"))
+            {
                 continue;
             }
             let name = fs::read_to_string(dir.join("name")).unwrap_or_default();
