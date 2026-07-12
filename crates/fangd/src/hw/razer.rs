@@ -17,13 +17,49 @@ pub struct RazerHw {
     sensors: Sensors,
 }
 
+/// Choose the laptop among Razer HID candidates on interface 0, each given as
+/// `(product_id, usage_page)`. Prefers a device whose PID is a recognized
+/// laptop; otherwise falls back to one presenting a vendor-defined usage page
+/// (the EC control interface), so an unlisted Blade still works while a Razer
+/// mouse or keyboard (generic-desktop usage page) is never selected. Returns
+/// the index into `candidates`, or `None` when only peripherals are present.
+fn choose_laptop(candidates: &[(u16, u16)]) -> Option<usize> {
+    candidates
+        .iter()
+        .position(|&(pid, _)| models::by_pid(pid).is_some())
+        .or_else(|| {
+            candidates
+                .iter()
+                .position(|&(_, usage_page)| usage_page >= 0xFF00)
+        })
+}
+
 impl RazerHw {
     pub fn open() -> Result<RazerHw, String> {
         let api = HidApi::new().map_err(|e| format!("hidapi init: {e}"))?;
-        let dev_info = api
+        // A Razer mouse or keyboard also has vendor id 0x1532 and presents an
+        // interface 0, so the first match isn't necessarily the laptop — and
+        // firing class-0x0d EC commands at a mouse is not what we want. Collect
+        // every candidate, then let `choose_laptop` prefer a recognized laptop
+        // PID and otherwise fall back to a vendor-usage-page EC interface.
+        let candidates: Vec<_> = api
             .device_list()
-            .find(|d| d.vendor_id() == RAZER_VID && d.interface_number() == 0)
-            .ok_or_else(|| "no USB device with Razer vendor id 0x1532".to_string())?;
+            .filter(|d| d.vendor_id() == RAZER_VID && d.interface_number() == 0)
+            .collect();
+        let sig: Vec<(u16, u16)> = candidates
+            .iter()
+            .map(|d| (d.product_id(), d.usage_page()))
+            .collect();
+        let dev_info = choose_laptop(&sig).map(|i| candidates[i]).ok_or_else(|| {
+            if candidates.is_empty() {
+                "no USB device with Razer vendor id 0x1532".to_string()
+            } else {
+                "found a Razer USB device but no laptop EC — a Razer mouse or \
+                 keyboard is not a Blade (add your model's PID to models.rs if \
+                 this is an unrecognized laptop)"
+                    .to_string()
+            }
+        })?;
         let pid = dev_info.product_id();
         let device = dev_info
             .open_device(&api)
@@ -231,5 +267,40 @@ impl Hw for MonitorOnly {
             gpu_power_w: r.gpu_power_w,
             fan_rpm: vec![],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::choose_laptop;
+
+    // 0x02B8 = Blade 18 2024 (in the model table); 0x0084 / 0x0067 are Razer
+    // mouse PIDs (not in the table); 0x9999 stands in for an unlisted laptop.
+    #[test]
+    fn prefers_known_laptop_over_attached_peripheral() {
+        // mouse enumerates first, laptop second — the laptop must still win
+        assert_eq!(
+            choose_laptop(&[(0x0084, 0x0001), (0x02B8, 0xFF00)]),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn known_laptop_selected_even_without_vendor_usage_page() {
+        assert_eq!(choose_laptop(&[(0x02B8, 0x0000)]), Some(0));
+    }
+
+    #[test]
+    fn unlisted_laptop_falls_back_to_ec_usage_page() {
+        assert_eq!(
+            choose_laptop(&[(0x0084, 0x0001), (0x9999, 0xFF00)]),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn peripherals_only_selects_nothing() {
+        // only a Razer mouse/keyboard present — never open one as a laptop
+        assert_eq!(choose_laptop(&[(0x0084, 0x0001), (0x0067, 0x0001)]), None);
     }
 }
