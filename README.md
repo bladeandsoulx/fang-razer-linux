@@ -56,9 +56,10 @@ git clone https://github.com/solomonmorse/fang && cd fang
 sudo ./packaging/install.sh
 ```
 
-The script installs build dependencies, builds and enables the `fangd`
-service, builds the app `.deb`, and adds you to the `fang` group
-(log out and back in once for group membership to apply).
+The script installs build dependencies, builds and installs both the `fangd`
+daemon and the app as `.deb` packages (so `sudo apt remove fangd fang` cleanly
+uninstalls), enables the service, and adds you to the `fang` group (log out and
+back in once for group membership to apply).
 
 ### Prebuilt packages
 

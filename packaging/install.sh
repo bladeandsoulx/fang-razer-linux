@@ -35,17 +35,19 @@ if ! run_user sh -c 'command -v cargo >/dev/null'; then
     exit 1
 fi
 
-echo "==> building fangd (release)"
+echo "==> building the fangd .deb"
 cd "$REPO_ROOT"
-run_user cargo build --release -p fangd
-
-echo "==> installing fangd + systemd unit"
-install -Dm755 target/release/fangd /usr/bin/fangd
-install -Dm644 packaging/fangd.service /lib/systemd/system/fangd.service
-getent group fang >/dev/null || groupadd --system fang
-
-systemctl daemon-reload
-systemctl enable --now fangd
+if ! run_user sh -c 'command -v cargo-deb >/dev/null'; then
+    echo "==> installing cargo-deb (one-time; this compiles, give it a minute)"
+    run_user cargo install cargo-deb --locked
+fi
+run_user cargo deb -p fangd
+FANGD_DEB="$(ls -t target/debian/*.deb | head -1)"
+echo "==> installing $FANGD_DEB"
+# The package installs the binary + unit, creates the 'fang' group, and enables
+# and starts the service — see the cargo-deb metadata in crates/fangd/Cargo.toml.
+# Installing it this way means `apt remove fangd` cleanly undoes everything.
+apt-get install -y "$FANGD_DEB"
 echo "==> fangd running: $(systemctl is-active fangd)"
 
 echo "==> building the Fang app (Tauri)"
