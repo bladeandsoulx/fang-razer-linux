@@ -52,7 +52,7 @@ unprivileged client (socket access via the `fang` group).
 From source:
 
 ```sh
-git clone https://github.com/solomonmorse/fang && cd fang
+git clone https://github.com/bladeandsoulx/fang && cd fang
 sudo ./packaging/install.sh
 ```
 
@@ -63,7 +63,7 @@ back in once for group membership to apply).
 
 ### Prebuilt packages
 
-Each [release](https://github.com/solomonmorse/fang/releases) attaches two
+Each [release](https://github.com/bladeandsoulx/fang/releases) attaches two
 `.deb`s — the `fangd` daemon and the app. After installing both, add yourself
 to the `fang` group so the app can reach the daemon socket, then log out and
 back in:

@@ -1,6 +1,6 @@
 [Unit]
 Description=Fang daemon — performance and fan control for Razer Blade laptops
-Documentation=https://github.com/solomonmorse/fang
+Documentation=https://github.com/bladeandsoulx/fang
 
 [Service]
 Type=exec
