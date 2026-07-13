@@ -1,7 +1,34 @@
-# Fang
+# Fang — Razer Blade Control Center for Linux
 
-**Synapse-style control center for Razer Blade laptops on Linux.**
-Performance modes, fan control and live thermals — no Windows required.
+[![CI](https://github.com/bladeandsoulx/fang-razer-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/bladeandsoulx/fang-razer-linux/actions/workflows/ci.yml)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+
+**An open-source Razer Synapse alternative for Razer Blade laptops on Linux.**
+Control performance modes, safe custom fan curves, battery charging, keyboard
+RGB, GPU mode, displays and live thermals — no Windows required.
+
+## A Razer Synapse alternative for Linux laptops
+
+[Razer Synapse 4](https://www.razer.com/gb-en/synapse-4) is Razer's official
+device-control platform for customization, performance settings, profiles and
+lighting. Fang brings the laptop-focused controls Razer Blade Linux users need
+into a native, safety-first desktop app.
+
+| Razer Blade control | Fang on Linux |
+|---|---|
+| Laptop performance modes and power levels | ✅ |
+| Automatic, manual and custom fan curves | ✅ thermal safety override always active |
+| Battery Health Optimizer / charge limit | ✅ on supported models |
+| Laptop keyboard RGB and lid logo lighting | ✅ on supported models |
+| GPU mode, refresh rate and display controls | ✅ |
+| Live temperatures, power and fan RPM | ✅ |
+| Mouse/keyboard remapping and macros | ❌ not currently supported |
+
+Fang is focused on **Razer Blade laptops**, rather than claiming full Synapse
+parity across every Razer peripheral. It currently recognizes 48 Blade models
+from 2015–2025.
+
+## What Fang controls
 
 - 🎛 **Performance modes** — Silent / Balanced / Gaming, plus Custom
   with per-CPU/GPU power levels (including CPU overclock boost on supported
@@ -52,7 +79,7 @@ unprivileged client (socket access via the `fang` group).
 From source:
 
 ```sh
-git clone https://github.com/bladeandsoulx/fang && cd fang
+git clone https://github.com/bladeandsoulx/fang-razer-linux && cd fang-razer-linux
 sudo ./packaging/install.sh
 ```
 
@@ -63,7 +90,7 @@ back in once for group membership to apply).
 
 ### Prebuilt packages
 
-Each [release](https://github.com/bladeandsoulx/fang/releases) attaches two
+Each [release](https://github.com/bladeandsoulx/fang-razer-linux/releases) attaches two
 `.deb`s — the `fangd` daemon and the app. After installing both, add yourself
 to the `fang` group so the app can reach the daemon socket, then log out and
 back in:

@@ -4,7 +4,7 @@ description = "Fang — Synapse-style control center for Razer Blade laptops on 
 version = "0.8.0"
 edition = "2021"
 license = "GPL-2.0"
-repository = "https://github.com/bladeandsoulx/fang"
+repository = "https://github.com/bladeandsoulx/fang-razer-linux"
 authors = ["Solomon Morse <bladeandsoulx@protonmail.com>"]
 
 # Standalone: not a member of the repo-root cargo workspace.
