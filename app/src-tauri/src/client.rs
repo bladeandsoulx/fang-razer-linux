@@ -4,10 +4,11 @@
 //! responses are matched by id, and pushed daemon events are re-emitted as
 //! Tauri events (`fang://telemetry`, `fang://status`, `fang://connected`).
 
-use fang_protocol::api::{Command, Event, Request, Response};
+use fang_protocol::api::{Command, Event, Request, Response, API_VERSION};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -15,11 +16,22 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::sync::{mpsc, oneshot};
 
 type Waiter = oneshot::Sender<Result<Value, String>>;
+const QUEUE_TIMEOUT: Duration = Duration::from_secs(2);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(35);
 
 #[derive(Clone)]
 pub struct Client {
     tx: mpsc::Sender<(Command, Waiter)>,
     connected: Arc<AtomicBool>,
+    daemon_api_version: Arc<AtomicU16>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct VersionInfo {
+    pub app_version: &'static str,
+    pub app_api_version: u16,
+    pub daemon_api_version: Option<u16>,
+    pub compatible: bool,
 }
 
 impl Client {
@@ -28,13 +40,52 @@ impl Client {
     }
 
     pub async fn request(&self, cmd: Command) -> Result<Value, String> {
+        if cmd.is_mutating() {
+            let daemon = self.daemon_api_version.load(Ordering::Relaxed);
+            if daemon != API_VERSION {
+                return Err(if daemon == 0 {
+                    "daemon API is unknown or outdated; update/restart both Fang packages".into()
+                } else {
+                    format!(
+                        "incompatible Fang API: app {API_VERSION}, daemon {daemon}; update both packages"
+                    )
+                });
+            }
+        }
         let (tx, rx) = oneshot::channel();
-        self.tx
-            .send((cmd, tx))
+        tokio::time::timeout(QUEUE_TIMEOUT, self.tx.send((cmd, tx)))
             .await
+            .map_err(|_| "daemon request queue is busy".to_string())?
             .map_err(|_| "daemon connection task gone".to_string())?;
-        rx.await.map_err(|_| "daemon offline".to_string())?
+        tokio::time::timeout(REQUEST_TIMEOUT, rx)
+            .await
+            .map_err(|_| "daemon request timed out".to_string())?
+            .map_err(|_| "daemon offline".to_string())?
     }
+
+    pub fn version_info(&self) -> VersionInfo {
+        version_info(&self.daemon_api_version)
+    }
+}
+
+fn version_info(daemon_api_version: &AtomicU16) -> VersionInfo {
+    let daemon = daemon_api_version.load(Ordering::Relaxed);
+    VersionInfo {
+        app_version: env!("CARGO_PKG_VERSION"),
+        app_api_version: API_VERSION,
+        daemon_api_version: (daemon != 0).then_some(daemon),
+        compatible: daemon == API_VERSION,
+    }
+}
+
+fn record_api_version(data: &Value, version: &AtomicU16, app: &AppHandle) {
+    let api = data
+        .get("api_version")
+        .and_then(Value::as_u64)
+        .and_then(|v| u16::try_from(v).ok())
+        .unwrap_or(0);
+    version.store(api, Ordering::Relaxed);
+    let _ = app.emit("fang://compatibility", version_info(version));
 }
 
 /// `FANGD_ADDR` overrides: `unix:/run/fangd.sock` or `tcp:127.0.0.1:7331`.
@@ -78,9 +129,11 @@ async fn open_stream(
 pub fn spawn(app: AppHandle) -> Client {
     let (tx, mut rx) = mpsc::channel::<(Command, Waiter)>(16);
     let connected = Arc::new(AtomicBool::new(false));
+    let daemon_api_version = Arc::new(AtomicU16::new(0));
     let client = Client {
         tx,
         connected: Arc::clone(&connected),
+        daemon_api_version: Arc::clone(&daemon_api_version),
     };
 
     tauri::async_runtime::spawn(async move {
@@ -108,7 +161,11 @@ pub fn spawn(app: AppHandle) -> Client {
 
             // Prime: subscribe to events and fetch current status.
             for cmd in [Command::Subscribe, Command::GetStatus] {
-                let req = Request { id: next_id, cmd };
+                let req = Request {
+                    id: next_id,
+                    api_version: API_VERSION,
+                    cmd,
+                };
                 next_id += 1;
                 let mut line = serde_json::to_string(&req).expect("serializable");
                 line.push('\n');
@@ -124,7 +181,14 @@ pub fn spawn(app: AppHandle) -> Client {
                         if let Ok(ev) = serde_json::from_str::<Event>(&line) {
                             match ev {
                                 Event::Telemetry(t) => { let _ = app.emit("fang://telemetry", t); }
-                                Event::StateChanged(s) => { let _ = app.emit("fang://status", s); }
+                                Event::StateChanged(s) => {
+                                    daemon_api_version.store(s.api_version, Ordering::Relaxed);
+                                    let _ = app.emit(
+                                        "fang://compatibility",
+                                        version_info(&daemon_api_version),
+                                    );
+                                    let _ = app.emit("fang://status", s);
+                                }
                             }
                         } else if let Ok(resp) = serde_json::from_str::<Response>(&line) {
                             let result = if resp.ok {
@@ -137,6 +201,7 @@ pub fn spawn(app: AppHandle) -> Client {
                             } else if let Ok(data) = result {
                                 // Response to our own priming get_status.
                                 if data.get("perf_mode").is_some() {
+                                    record_api_version(&data, &daemon_api_version, &app);
                                     let _ = app.emit("fang://status", data);
                                 }
                             }
@@ -144,7 +209,11 @@ pub fn spawn(app: AppHandle) -> Client {
                     }
                     req = rx.recv() => {
                         let Some((cmd, waiter)) = req else { return };
-                        let req = Request { id: next_id, cmd };
+                        let req = Request {
+                            id: next_id,
+                            api_version: API_VERSION,
+                            cmd,
+                        };
                         next_id += 1;
                         let mut line = serde_json::to_string(&req).expect("serializable");
                         line.push('\n');
@@ -157,7 +226,9 @@ pub fn spawn(app: AppHandle) -> Client {
             }
 
             connected.store(false, Ordering::Relaxed);
+            daemon_api_version.store(0, Ordering::Relaxed);
             let _ = app.emit("fang://connected", false);
+            let _ = app.emit("fang://compatibility", version_info(&daemon_api_version));
             for (_, waiter) in pending.drain() {
                 let _ = waiter.send(Err("daemon disconnected".into()));
             }
@@ -166,4 +237,19 @@ pub fn spawn(app: AppHandle) -> Client {
     });
 
     client
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_info_requires_an_exact_api_match() {
+        let daemon = AtomicU16::new(0);
+        assert!(!version_info(&daemon).compatible);
+        daemon.store(API_VERSION, Ordering::Relaxed);
+        let info = version_info(&daemon);
+        assert!(info.compatible);
+        assert_eq!(info.daemon_api_version, Some(API_VERSION));
+    }
 }

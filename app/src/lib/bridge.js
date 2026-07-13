@@ -2,7 +2,15 @@
 // built-in simulator with the same wire shapes, so the UI can be developed
 // and demoed without the daemon.
 
-import { connected, display, panel, status, telemetry, uiSettings } from './stores.js';
+import {
+  connected,
+  display,
+  panel,
+  status,
+  telemetry,
+  uiSettings,
+  versionInfo
+} from './stores.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -20,12 +28,14 @@ async function initTauri() {
   invoke = core.invoke;
 
   await listen('fang://connected', (e) => connected.set(e.payload));
+  await listen('fang://compatibility', (e) => versionInfo.set(e.payload));
   await listen('fang://status', (e) => status.set(e.payload));
   await listen('fang://telemetry', (e) => telemetry.set(e.payload));
 
   try {
     const up = await invoke('daemon_connected');
     connected.set(up);
+    versionInfo.set(await invoke('get_version_info'));
     if (up) status.set(await invoke('get_status'));
     uiSettings.set(await invoke('get_ui_settings'));
     display.set(await invoke('get_display'));
@@ -150,14 +160,15 @@ const sim = {
     device_present: true,
     verified: true,
     mock: true,
+    api_version: 1,
     perf_mode: 'balanced',
     cpu_boost: 'medium',
     gpu_boost: 'medium',
     fan: { mode: 'auto' },
+    fan_curve: [],
     fan_rpm_min: 2200,
     fan_rpm_max: 5000,
     has_cpu_boost_oc: true,
-    has_creator_mode: true,
     has_bho: true,
     bho_enabled: false,
     bho_threshold: 80,
@@ -181,7 +192,7 @@ const sim = {
     battery_fan: { mode: 'auto' },
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
-    daemon_version: '0.1.0-sim'
+    daemon_version: '0.8.0-sim'
   },
   displayInfo: {
     supported: true,
@@ -197,33 +208,55 @@ const sim = {
   rpm: [2300, 2280],
   onAc: true,
   t: 0,
+  thermalOverride: false,
+
+  curveTarget(points, temp) {
+    if (temp <= points[0].temp_c) return points[0].rpm;
+    for (let i = 1; i < points.length; i += 1) {
+      const low = points[i - 1];
+      const high = points[i];
+      if (temp <= high.temp_c) {
+        const fraction = (temp - low.temp_c) / (high.temp_c - low.temp_c);
+        return Math.round((low.rpm + (high.rpm - low.rpm) * fraction) / 100) * 100;
+      }
+    }
+    return points[points.length - 1].rpm;
+  },
 
   targets() {
     const mode = this.state.perf_mode;
     const temps = {
       silent: [54, 48],
       balanced: [58, 52],
-      creator: [68, 63],
       gaming: [74, 70],
       custom: [70, 66]
     }[mode];
     const watts = {
       silent: [16, 9],
       balanced: [28, 18],
-      creator: [45, 60],
       gaming: [58, 92],
       custom: [50, 70]
     }[mode];
-    const rpm =
-      this.state.fan.mode === 'manual'
-        ? this.state.fan.rpm
-        : { silent: 2200, balanced: 2600, creator: 3300, gaming: 3800, custom: 3400 }[mode];
-    return { temps, watts, rpm };
+    const automatic = { silent: 2200, balanced: 2600, gaming: 3800, custom: 3400 }[mode];
+    let fanTarget = null;
+    if (this.state.fan.mode === 'manual') fanTarget = this.state.fan.rpm;
+    if (this.state.fan.mode === 'curve') {
+      fanTarget = this.curveTarget(this.state.fan.points, Math.max(this.cpu, this.gpu));
+    }
+    if (fanTarget == null) {
+      this.thermalOverride = false;
+    } else if (this.thermalOverride) {
+      this.thermalOverride = this.cpu >= 88 || this.gpu >= 82;
+    } else {
+      this.thermalOverride = this.cpu >= 95 || this.gpu >= 87;
+    }
+    const rpm = this.thermalOverride ? this.state.fan_rpm_max : (fanTarget ?? automatic);
+    return { temps, watts, rpm, fanTarget: fanTarget == null ? null : rpm };
   },
 
   tick() {
     this.t += 1;
-    const { temps, watts, rpm } = this.targets();
+    const { temps, watts, rpm, fanTarget } = this.targets();
     const wiggle = Math.sin(this.t * 0.7) * 1.2 + Math.sin(this.t * 0.13) * 2;
     this.cpu += (temps[0] + wiggle - this.cpu) * 0.08;
     this.gpu += (temps[1] + wiggle * 0.8 - this.gpu) * 0.06;
@@ -237,12 +270,26 @@ const sim = {
       gpu_power_w: watts[1] + wiggle * 2,
       on_ac: this.onAc,
       fan_rpm: this.rpm.map((r) => Math.round(r)),
+      fan_target_rpm: fanTarget,
+      thermal_override_active: this.thermalOverride,
+      thermal_sensor_ok: true,
+      thermal_override_reason: this.thermalOverride ? 'temperature' : null,
       ts_ms: Date.now()
     });
   },
 
   push() {
-    status.set({ ...this.state, fan: { ...this.state.fan } });
+    const fan = {
+      ...this.state.fan,
+      ...(this.state.fan.points
+        ? { points: this.state.fan.points.map((point) => ({ ...point })) }
+        : {})
+    };
+    status.set({
+      ...this.state,
+      fan,
+      fan_curve: this.state.fan_curve.map((point) => ({ ...point }))
+    });
   },
 
   setPerfMode(perfMode, cpuBoost, gpuBoost) {
@@ -256,8 +303,40 @@ const sim = {
     if (fan.mode === 'manual') {
       fan = {
         mode: 'manual',
-        rpm: Math.min(this.state.fan_rpm_max, Math.max(this.state.fan_rpm_min, fan.rpm))
+        rpm: Math.round(
+          Math.min(this.state.fan_rpm_max, Math.max(this.state.fan_rpm_min, fan.rpm)) / 100
+        ) * 100
       };
+    } else if (fan.mode === 'curve') {
+      if (!Array.isArray(fan.points) || fan.points.length < 2 || fan.points.length > 8) {
+        throw new Error('fan curve needs 2..=8 points');
+      }
+      let previous = null;
+      fan = {
+        mode: 'curve',
+        points: fan.points.map((raw) => {
+          const point = {
+            temp_c: Math.round(raw.temp_c),
+            rpm: Math.round(
+              Math.min(this.state.fan_rpm_max, Math.max(this.state.fan_rpm_min, raw.rpm)) / 100
+            ) * 100
+          };
+          if (point.temp_c < 30 || point.temp_c > 100) {
+            throw new Error('fan-curve temperatures must be between 30 and 100 C');
+          }
+          if (previous && point.temp_c <= previous.temp_c) {
+            throw new Error('fan-curve temperatures must be strictly increasing');
+          }
+          if (previous && point.rpm < previous.rpm) {
+            throw new Error('fan-curve RPM must not decrease as temperature rises');
+          }
+          previous = point;
+          return point;
+        })
+      };
+    }
+    if (fan.mode === 'curve') {
+      this.state.fan_curve = fan.points.map((point) => ({ ...point }));
     }
     this.state.fan = fan;
     this.push();
@@ -321,6 +400,12 @@ const sim = {
 
 function initSim() {
   connected.set(true);
+  versionInfo.set({
+    app_version: '0.8.0-sim',
+    app_api_version: 1,
+    daemon_api_version: 1,
+    compatible: true
+  });
   uiSettings.set({ autostart: false, close_to_tray: true });
   display.set(sim.displayInfo);
   panel.set(sim.panelInfo);

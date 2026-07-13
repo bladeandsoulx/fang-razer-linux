@@ -112,7 +112,7 @@ pub fn crc(buf: &[u8; REPORT_LEN]) -> u8 {
 
 // ---- EC commands (class 0x0d: performance / thermals) ----------------------
 
-/// mode: 0 balanced, 1 gaming, 2 creator, 3 silent, 4 custom.
+/// mode: 0 balanced, 1 gaming, 4 custom. Values 2 and 3 are not exposed.
 /// `manual_fan` selects manual fan RPM control instead of the EC fan curve.
 pub fn set_power_mode(zone: Zone, mode: u8, manual_fan: bool) -> Report {
     Report::new(0x0d, 0x02, &[0x00, zone as u8, mode, manual_fan as u8])

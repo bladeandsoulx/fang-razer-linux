@@ -8,7 +8,7 @@
   import Changelog from './screens/Changelog.svelte';
   import Settings from './screens/Settings.svelte';
   import Disconnected from './screens/Disconnected.svelte';
-  import { connected, status } from './lib/stores.js';
+  import { connected, status, versionInfo } from './lib/stores.js';
   import { inTauri } from './lib/bridge.js';
 
   const SCREENS = [
@@ -73,6 +73,15 @@
   {#if inTauri && !$connected}
     <Disconnected />
   {/if}
+
+  {#if inTauri && $connected && !$versionInfo.compatible}
+    <div class="compatibility" role="alert">
+      <strong>App and daemon are incompatible.</strong>
+      App API {$versionInfo.app_api_version}; daemon API
+      {$versionInfo.daemon_api_version ?? 'missing'}. Update and restart both Fang packages.
+      Hardware changes are blocked until they match.
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -82,6 +91,26 @@
     grid-template-columns: var(--rail-w) 1fr;
     height: 100%;
     z-index: 1;
+  }
+
+  .compatibility {
+    position: fixed;
+    z-index: 30;
+    left: calc(var(--rail-w) + 26px);
+    right: 26px;
+    bottom: 20px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 92, 92, 0.45);
+    border-radius: 8px;
+    color: var(--red);
+    background: rgba(35, 12, 14, 0.96);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    font-size: 12px;
+  }
+
+  .compatibility strong {
+    display: block;
+    margin-bottom: 3px;
   }
 
   aside {

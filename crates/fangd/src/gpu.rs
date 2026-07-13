@@ -77,7 +77,9 @@ impl GpuSwitch for MockGpu {
 #[cfg(target_os = "linux")]
 mod linux {
     use super::{GpuMode, GpuSwitch};
-    use std::process::Command;
+    use std::time::Duration;
+
+    const GPU_TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 
     enum Tool {
         /// Ubuntu `prime-select`: intel | on-demand | nvidia
@@ -88,14 +90,12 @@ mod linux {
 
     pub struct PrimeTool {
         tool: Tool,
+        mode: GpuMode,
         pending: bool,
     }
 
     fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
-        let out = Command::new(cmd)
-            .args(args)
-            .output()
-            .map_err(|e| format!("{cmd}: {e}"))?;
+        let out = crate::process::output_with_timeout(cmd, args, GPU_TOOL_TIMEOUT)?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
         } else {
@@ -107,21 +107,36 @@ mod linux {
         }
     }
 
+    fn parse_mode(answer: &str) -> Option<GpuMode> {
+        match answer.trim().to_lowercase().as_str() {
+            "intel" | "integrated" => Some(GpuMode::Integrated),
+            "on-demand" | "hybrid" => Some(GpuMode::Hybrid),
+            "nvidia" => Some(GpuMode::Dedicated),
+            _ => None,
+        }
+    }
+
     impl PrimeTool {
         pub fn detect() -> Option<PrimeTool> {
-            if run("prime-select", &["query"]).is_ok() {
-                log::info!("gpu switching via prime-select");
-                return Some(PrimeTool {
-                    tool: Tool::PrimeSelect,
-                    pending: false,
-                });
+            if let Ok(answer) = run("prime-select", &["query"]) {
+                if let Some(mode) = parse_mode(&answer) {
+                    log::info!("gpu switching via prime-select");
+                    return Some(PrimeTool {
+                        tool: Tool::PrimeSelect,
+                        mode,
+                        pending: false,
+                    });
+                }
             }
-            if run("envycontrol", &["--query"]).is_ok() {
-                log::info!("gpu switching via envycontrol");
-                return Some(PrimeTool {
-                    tool: Tool::EnvyControl,
-                    pending: false,
-                });
+            if let Ok(answer) = run("envycontrol", &["--query"]) {
+                if let Some(mode) = parse_mode(&answer) {
+                    log::info!("gpu switching via envycontrol");
+                    return Some(PrimeTool {
+                        tool: Tool::EnvyControl,
+                        mode,
+                        pending: false,
+                    });
+                }
             }
             log::info!("no prime-select/envycontrol; gpu mode switching disabled");
             None
@@ -130,19 +145,7 @@ mod linux {
 
     impl GpuSwitch for PrimeTool {
         fn current(&self) -> Option<GpuMode> {
-            let answer = match self.tool {
-                Tool::PrimeSelect => run("prime-select", &["query"]).ok()?,
-                Tool::EnvyControl => run("envycontrol", &["--query"]).ok()?,
-            };
-            match answer.to_lowercase().as_str() {
-                "intel" | "integrated" => Some(GpuMode::Integrated),
-                "on-demand" | "hybrid" => Some(GpuMode::Hybrid),
-                "nvidia" => Some(GpuMode::Dedicated),
-                other => {
-                    log::warn!("unrecognized gpu mode answer: {other}");
-                    None
-                }
-            }
+            Some(self.mode)
         }
 
         fn set(&mut self, mode: GpuMode) -> Result<(), String> {
@@ -164,12 +167,27 @@ mod linux {
                     run("envycontrol", &["-s", arg])?;
                 }
             }
+            self.mode = mode;
             self.pending = true;
             Ok(())
         }
 
         fn pending(&self) -> bool {
             self.pending
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::parse_mode;
+        use crate::gpu::GpuMode;
+
+        #[test]
+        fn parses_supported_backend_names() {
+            assert_eq!(parse_mode("on-demand\n"), Some(GpuMode::Hybrid));
+            assert_eq!(parse_mode("integrated"), Some(GpuMode::Integrated));
+            assert_eq!(parse_mode("nvidia"), Some(GpuMode::Dedicated));
+            assert_eq!(parse_mode("unknown"), None);
         }
     }
 }

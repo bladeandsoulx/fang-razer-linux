@@ -1,17 +1,21 @@
 //! JSON-lines API between `fangd` and clients.
 //!
-//! Client sends one JSON object per line: `{"id": 1, "cmd": "get_status"}`.
+//! Client sends one JSON object per line:
+//! `{"id":1,"api_version":1,"cmd":"get_status"}`.
 //! Daemon answers `{"id": 1, "ok": true, "data": {...}}` and, after a
 //! `subscribe`, pushes `{"event": "telemetry", "data": {...}}` lines.
 
 use serde::{Deserialize, Serialize};
+
+/// Socket API compatibility version. App and daemon may have different patch
+/// versions, but state-changing commands are allowed only when this matches.
+pub const API_VERSION: u16 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PerfMode {
     Balanced,
     Gaming,
-    Creator,
     Silent,
     Custom,
 }
@@ -21,9 +25,8 @@ impl PerfMode {
         match self {
             PerfMode::Balanced => 0,
             PerfMode::Gaming => 1,
-            PerfMode::Creator => 2,
             // The EC has no silent mode: razer-laptop-control defines only
-            // 0..=2 and 4, and sending the undefined 3 trips an EC failsafe
+            // 0, 1, 2 and 4, and sending the undefined 3 trips an EC failsafe
             // with fans at max. Silent rides on Custom; the hardware backend
             // pins both boosts to Low.
             PerfMode::Silent => 4,
@@ -54,11 +57,28 @@ impl Boost {
     }
 }
 
+/// One point on a software-controlled fan curve. The daemon interpolates RPM
+/// linearly between points using the hotter of the CPU and GPU sensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FanCurvePoint {
+    pub temp_c: u8,
+    pub rpm: u16,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum FanMode {
     Auto,
     Manual { rpm: u16 },
+    Curve { points: Vec<FanCurvePoint> },
+}
+
+/// Why the mandatory software fan guard is forcing maximum RPM.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThermalOverrideReason {
+    Temperature,
+    SensorUnavailable,
 }
 
 /// Logo LED behaviour (models with the "logo" feature).
@@ -106,6 +126,10 @@ pub enum GpuMode {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Request {
     pub id: u64,
+    /// Optional on the wire for read-only backward compatibility. Mutating
+    /// commands require an exact match with API_VERSION.
+    #[serde(default)]
+    pub api_version: u16,
     #[serde(flatten)]
     pub cmd: Command,
 }
@@ -160,14 +184,23 @@ pub enum Command {
         enabled: bool,
         ac_profile: PerfMode,
         battery_profile: PerfMode,
-        /// Fan applied on AC (Auto follows the mode's curve; Manual pins it).
+        /// Fan policy applied on AC.
         ac_fan: FanMode,
-        /// Fan applied on battery.
+        /// Fan policy applied on battery.
         battery_fan: FanMode,
     },
     /// Start receiving `telemetry` / `state_changed` events on this connection.
     Subscribe,
     Ping,
+}
+
+impl Command {
+    pub fn is_mutating(&self) -> bool {
+        !matches!(
+            self,
+            Command::GetStatus | Command::Subscribe | Command::Ping
+        )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -210,6 +243,9 @@ pub enum Event {
 /// Full daemon/device state, returned by `get_status` and on `state_changed`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Status {
+    /// Socket API version used for app/daemon compatibility checks.
+    #[serde(default)]
+    pub api_version: u16,
     pub model: String,
     /// False when no Razer laptop was found (daemon still runs, monitor-only).
     pub device_present: bool,
@@ -221,12 +257,12 @@ pub struct Status {
     pub cpu_boost: Boost,
     pub gpu_boost: Boost,
     pub fan: FanMode,
+    /// Last saved custom curve, retained even while Auto/Manual is active.
+    #[serde(default)]
+    pub fan_curve: Vec<FanCurvePoint>,
     pub fan_rpm_min: u16,
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
-    /// Model's EC defines power mode 2 (Creator); the UI hides the mode and
-    /// the daemon rejects it otherwise.
-    pub has_creator_mode: bool,
     /// Model supports the Battery Health Optimizer charge limiter.
     pub has_bho: bool,
     pub bho_enabled: bool,
@@ -252,9 +288,9 @@ pub struct Status {
     pub ac_profile: PerfMode,
     /// Profile applied when on battery (meaningful when `auto_power`).
     pub battery_profile: PerfMode,
-    /// Fan applied on AC alongside `ac_profile` (Auto = the mode's own curve).
+    /// Fan policy applied on AC alongside `ac_profile`.
     pub ac_fan: FanMode,
-    /// Fan applied on battery alongside `battery_profile`.
+    /// Fan policy applied on battery alongside `battery_profile`.
     pub battery_fan: FanMode,
     /// None when no supported GPU-switching tool is available on the host.
     pub gpu_mode: Option<GpuMode>,
@@ -282,6 +318,19 @@ pub struct Telemetry {
     /// tachometer, so this is the target, not a measurement. Empty when
     /// unreadable.
     pub fan_rpm: Vec<u32>,
+    /// Software-selected target while Manual or Curve control is active.
+    #[serde(default)]
+    pub fan_target_rpm: Option<u16>,
+    /// The mandatory thermal guard has overridden Manual/Curve control and is
+    /// forcing the model's maximum fan target.
+    #[serde(default)]
+    pub thermal_override_active: bool,
+    /// The mandatory CPU temperature input has produced a fresh reading.
+    #[serde(default)]
+    pub thermal_sensor_ok: bool,
+    /// Present while `thermal_override_active` explains why max RPM is forced.
+    #[serde(default)]
+    pub thermal_override_reason: Option<ThermalOverrideReason>,
     pub ts_ms: u64,
 }
 
@@ -294,11 +343,27 @@ mod tests {
         let r: Request =
             serde_json::from_str(r#"{"id":3,"cmd":"set_fan","mode":"manual","rpm":4400}"#).unwrap();
         assert_eq!(r.id, 3);
+        assert_eq!(r.api_version, 0);
         match r.cmd {
             Command::SetFan {
                 fan: FanMode::Manual { rpm },
             } => assert_eq!(rpm, 4400),
             other => panic!("bad parse: {other:?}"),
+        }
+
+        let r: Request = serde_json::from_str(
+            r#"{"id":8,"cmd":"set_fan","mode":"curve","points":[{"temp_c":45,"rpm":2200},{"temp_c":85,"rpm":5000}]}"#,
+        )
+        .unwrap();
+        match r.cmd {
+            Command::SetFan {
+                fan: FanMode::Curve { points },
+            } => {
+                assert_eq!(points.len(), 2);
+                assert_eq!(points[1].temp_c, 85);
+                assert_eq!(points[1].rpm, 5000);
+            }
+            other => panic!("bad curve parse: {other:?}"),
         }
 
         let r: Request = serde_json::from_str(
@@ -339,6 +404,10 @@ mod tests {
             gpu_power_w: None,
             on_ac: Some(true),
             fan_rpm: vec![2300, 2280],
+            fan_target_rpm: Some(2300),
+            thermal_override_active: false,
+            thermal_sensor_ok: true,
+            thermal_override_reason: None,
             ts_ms: 12,
         });
         let s = serde_json::to_string(&e).unwrap();
@@ -346,19 +415,32 @@ mod tests {
     }
 
     #[test]
-    fn no_perf_mode_emits_the_undefined_ec_value() {
-        // 3 is not a valid EC power mode (razer-laptop-control defines only
-        // 0..=2 and 4); ECs answer it with a max-fan failsafe.
+    fn only_exposed_perf_modes_reach_the_ec() {
+        // EC mode 2 is intentionally not exposed, while 3 is undefined.
         for m in [
             PerfMode::Balanced,
             PerfMode::Gaming,
-            PerfMode::Creator,
             PerfMode::Silent,
             PerfMode::Custom,
         ] {
-            assert_ne!(m.to_ec(), 3, "{m:?} must not reach the EC as 3");
+            assert!(
+                [0, 1, 4].contains(&m.to_ec()),
+                "unexpected EC mode for {m:?}"
+            );
         }
         // Silent rides on Custom; the backend pins its boosts to Low.
         assert_eq!(PerfMode::Silent.to_ec(), PerfMode::Custom.to_ec());
+        assert!(serde_json::from_str::<Request>(
+            r#"{"id":10,"cmd":"set_perf_mode","perf_mode":"creator"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn command_mutability_is_explicit() {
+        assert!(!Command::GetStatus.is_mutating());
+        assert!(!Command::Subscribe.is_mutating());
+        assert!(!Command::Ping.is_mutating());
+        assert!(Command::SetFan { fan: FanMode::Auto }.is_mutating());
     }
 }

@@ -2,6 +2,38 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.8.0',
+      date: '2026-07-12',
+      title: 'Fan curves & safety hardening',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'Editable custom fan curves using the hotter CPU/GPU temperature.',
+            'Mandatory max-fan override at CPU ≥95 °C or GPU ≥87 °C.',
+            'Sensor-loss watchdog: software fan control stays at max until CPU telemetry is fresh.',
+            'App/daemon API handshake blocks writes when package versions are incompatible.'
+          ]
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'TCP is now mock-only and loopback-only.',
+            'DDC/GPU helpers are isolated from thermal control and have hard timeouts.',
+            'Stopping or crashing fangd restores the EC automatic fan policy.'
+          ]
+        },
+        {
+          kind: 'Fixed',
+          items: ['All release manifests are 0.8.0 and the app requires a compatible fangd package.']
+        },
+        {
+          kind: 'Removed',
+          items: ['Creator performance mode.']
+        }
+      ]
+    },
+    {
       version: '0.7.0',
       date: '2026-07-07',
       title: 'Power-source automation',
@@ -153,6 +185,7 @@
     Added: 'add',
     Fixed: 'fix',
     Changed: 'chg',
+    Removed: 'remove',
     Credits: 'cred'
   };
 </script>
@@ -237,6 +270,10 @@
 
   .kind.fix {
     color: var(--amber);
+  }
+
+  .kind.remove {
+    color: var(--red);
   }
 
   .kind.chg {

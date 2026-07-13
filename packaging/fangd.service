@@ -5,8 +5,10 @@ Documentation=https://github.com/solomonmorse/fang
 [Service]
 Type=exec
 ExecStart=/usr/bin/fangd
+ExecStopPost=/usr/bin/fangd --restore-auto
 Restart=on-failure
 RestartSec=3
+TimeoutStopSec=8
 StateDirectory=fangd
 # Hardening: the daemon only needs hidraw, hwmon/nvml and its state dir.
 ProtectHome=true

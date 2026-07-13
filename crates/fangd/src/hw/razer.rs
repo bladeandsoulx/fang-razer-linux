@@ -140,13 +140,12 @@ impl Hw for RazerHw {
             fan_rpm_max: self.model.fan_rpm_max,
             has_cpu_boost_oc: self.model.has_cpu_boost_oc,
             has_bho: self.model.has_bho,
-            has_creator_mode: self.model.has_creator_mode,
             has_logo: self.model.has_logo,
         }
     }
 
     fn apply(&mut self, state: &AppliedState) -> Result<(), String> {
-        let manual = matches!(state.fan, FanMode::Manual { .. });
+        let manual = matches!(&state.fan, FanMode::Manual { .. } | FanMode::Curve { .. });
         let mode = state.perf_mode.to_ec();
         // Silent maps to the EC's Custom mode with both boosts pinned Low:
         // the reduced power budget is what keeps the fans quiet, while the
@@ -169,7 +168,13 @@ impl Hw for RazerHw {
         };
         for zone in ZONES {
             self.command(packet::set_power_mode(zone, mode, manual))?;
-            if let FanMode::Manual { rpm } = state.fan {
+            let initial_rpm = match &state.fan {
+                // Start every software-controlled mode at the safest target.
+                // Core lowers it only after a fresh CPU sample is available.
+                FanMode::Manual { .. } | FanMode::Curve { .. } => Some(self.model.fan_rpm_max),
+                FanMode::Auto => None,
+            };
+            if let Some(rpm) = initial_rpm {
                 self.command(packet::set_fan_rpm(zone, self.clamp_rpm(rpm)))?;
             }
         }
@@ -202,6 +207,22 @@ impl Hw for RazerHw {
                 self.command(packet::set_logo_effect(effect))?;
             }
             self.command(packet::set_logo_state(state.logo_led != LogoMode::Off))?;
+        }
+        Ok(())
+    }
+
+    fn set_fan_target(&mut self, rpm: u16) -> Result<(), String> {
+        let rpm = self.clamp_rpm(rpm);
+        for zone in ZONES {
+            self.command(packet::set_fan_rpm(zone, rpm))?;
+        }
+        Ok(())
+    }
+
+    fn restore_auto_fan(&mut self, perf_mode: PerfMode) -> Result<(), String> {
+        let mode = perf_mode.to_ec();
+        for zone in ZONES {
+            self.command(packet::set_power_mode(zone, mode, false))?;
         }
         Ok(())
     }
@@ -249,13 +270,20 @@ impl Hw for MonitorOnly {
             fan_rpm_max: 0,
             has_cpu_boost_oc: false,
             has_bho: false,
-            has_creator_mode: false,
             has_logo: false,
         }
     }
 
     fn apply(&mut self, _state: &AppliedState) -> Result<(), String> {
         Err("no Razer laptop device present".into())
+    }
+
+    fn set_fan_target(&mut self, _rpm: u16) -> Result<(), String> {
+        Err("no Razer laptop device present".into())
+    }
+
+    fn restore_auto_fan(&mut self, _perf_mode: PerfMode) -> Result<(), String> {
+        Ok(())
     }
 
     fn sample(&mut self) -> Sample {

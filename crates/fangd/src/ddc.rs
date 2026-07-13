@@ -10,7 +10,10 @@
 //! unprivileged app (which would otherwise need standing i2c permissions).
 
 use fang_protocol::api::ColorPreset;
-use std::process::Command;
+use std::time::Duration;
+
+const DDC_TIMEOUT: Duration = Duration::from_secs(8);
+const MODPROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Curated VCP 0x14 presets in UI order (value, label). Only those a monitor
 /// actually advertises are offered. Standard MCCS color-temperature values.
@@ -49,7 +52,11 @@ impl Ddc {
     fn discover() -> Ddc {
         // Best-effort: load i2c-dev so DDC works even right after boot,
         // without a persistent modules-load config.
-        let _ = Command::new("modprobe").arg("i2c-dev").status();
+        if let Err(e) =
+            crate::process::output_with_timeout("modprobe", &["i2c-dev"], MODPROBE_TIMEOUT)
+        {
+            log::debug!("could not load i2c-dev: {e}");
+        }
 
         let Some(display) = detect_external() else {
             log::info!("DDC color: no external DDC/CI monitor detected");
@@ -167,7 +174,13 @@ impl Ddc {
 }
 
 fn ddcutil(args: &[&str]) -> Option<String> {
-    let out = Command::new("ddcutil").args(args).output().ok()?;
+    let out = match crate::process::output_with_timeout("ddcutil", args, DDC_TIMEOUT) {
+        Ok(out) => out,
+        Err(e) => {
+            log::warn!("ddcutil {}: {e}", args.join(" "));
+            return None;
+        }
+    };
     out.status
         .success()
         .then(|| String::from_utf8_lossy(&out.stdout).into_owned())

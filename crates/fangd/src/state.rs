@@ -1,15 +1,18 @@
 //! Desired hardware state, persisted so it survives restarts and resume.
 
-use fang_protocol::api::{Boost, FanMode, KbdEffect, LogoMode, PerfMode};
+use fang_protocol::api::{Boost, FanCurvePoint, FanMode, KbdEffect, LogoMode, PerfMode};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppliedState {
     pub perf_mode: PerfMode,
     pub cpu_boost: Boost,
     pub gpu_boost: Boost,
     pub fan: FanMode,
+    /// Last validated custom curve, retained while Auto or Manual is active.
+    #[serde(default)]
+    pub fan_curve: Vec<FanCurvePoint>,
     // serde defaults keep state files from before each feature loading.
     #[serde(default)]
     pub bho_enabled: bool,
@@ -29,7 +32,7 @@ pub struct AppliedState {
     pub ac_profile: PerfMode,
     #[serde(default = "default_battery_profile")]
     pub battery_profile: PerfMode,
-    /// Fan applied for each source when automation switches (Auto = mode curve).
+    /// Fan policy applied for each source when automation switches.
     #[serde(default = "default_fan")]
     pub ac_fan: FanMode,
     #[serde(default = "default_fan")]
@@ -76,6 +79,7 @@ impl Default for AppliedState {
             cpu_boost: Boost::Medium,
             gpu_boost: Boost::Medium,
             fan: FanMode::Auto,
+            fan_curve: Vec::new(),
             bho_enabled: false,
             bho_threshold: default_bho_threshold(),
             kbd_brightness: default_brightness(),
@@ -134,5 +138,34 @@ pub fn default_state_path() -> PathBuf {
         std::env::var_os("LOCALAPPDATA")
             .map(|d| PathBuf::from(d).join("fangd").join("state.json"))
             .unwrap_or_else(|| PathBuf::from("fangd-state.json"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_fan_curve_survives_state_roundtrip() {
+        let points = vec![
+            FanCurvePoint {
+                temp_c: 45,
+                rpm: 2200,
+            },
+            FanCurvePoint {
+                temp_c: 85,
+                rpm: 5000,
+            },
+        ];
+        let state = AppliedState {
+            fan: FanMode::Curve {
+                points: points.clone(),
+            },
+            fan_curve: points,
+            ..AppliedState::default()
+        };
+        let json = serde_json::to_string(&state).unwrap();
+        let decoded: AppliedState = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, state);
     }
 }

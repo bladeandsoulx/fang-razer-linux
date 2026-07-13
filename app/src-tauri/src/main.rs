@@ -52,6 +52,11 @@ fn daemon_connected(client: State<'_, Client>) -> bool {
 }
 
 #[tauri::command]
+fn get_version_info(client: State<'_, Client>) -> client::VersionInfo {
+    client.version_info()
+}
+
+#[tauri::command]
 async fn get_status(client: State<'_, Client>) -> Result<Value, String> {
     client.request(Command::GetStatus).await
 }
@@ -209,7 +214,6 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Fang", true, None::<&str>)?;
     let silent = MenuItem::with_id(app, "mode:silent", "Silent", true, None::<&str>)?;
     let balanced = MenuItem::with_id(app, "mode:balanced", "Balanced", true, None::<&str>)?;
-    let creator = MenuItem::with_id(app, "mode:creator", "Creator", true, None::<&str>)?;
     let gaming = MenuItem::with_id(app, "mode:gaming", "Gaming", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Fang", true, None::<&str>)?;
     let menu = Menu::with_items(
@@ -219,7 +223,6 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::separator(app)?,
             &silent,
             &balanced,
-            &creator,
             &gaming,
             &PredefinedMenuItem::separator(app)?,
             &quit,
@@ -302,6 +305,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             daemon_connected,
+            get_version_info,
             get_status,
             set_perf_mode,
             set_fan,

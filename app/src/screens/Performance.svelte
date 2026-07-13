@@ -6,7 +6,6 @@
   const MODES = [
     { mode: 'silent', title: 'Silent', icon: 'power', blurb: 'Lowest fan noise, capped power. For late nights and libraries.' },
     { mode: 'balanced', title: 'Balanced', icon: 'dashboard', blurb: 'The everyday default. Sensible power, sensible acoustics.' },
-    { mode: 'creator', title: 'Creator', icon: 'gpu', blurb: 'Sustained GPU workloads: rendering, compile farms, ML.' },
     { mode: 'gaming', title: 'Gaming', icon: 'performance', blurb: 'Full tilt. Maximum sustained CPU + GPU power.' },
     { mode: 'custom', title: 'Custom', icon: 'settings', blurb: 'Pick CPU and GPU power levels yourself.' }
   ];
@@ -15,9 +14,7 @@
   const GPU_LEVELS = ['low', 'medium', 'high'];
 
   $: cpuLevels = $status?.has_cpu_boost_oc ? CPU_LEVELS : CPU_LEVELS.slice(0, 3);
-  // Most ECs don't define Creator (power mode 2); hide it unless the model
-  // profile says otherwise — the daemon rejects it anyway.
-  $: modes = $status?.has_creator_mode === false ? MODES.filter((m) => m.mode !== 'creator') : MODES;
+  const modes = MODES;
 
   function select(e) {
     const mode = e.detail;
@@ -36,13 +33,9 @@
   const AUTO_MODES = [
     { mode: 'silent', title: 'Silent' },
     { mode: 'balanced', title: 'Balanced' },
-    { mode: 'creator', title: 'Creator' },
     { mode: 'gaming', title: 'Gaming' }
   ];
-  $: autoModes =
-    $status?.has_creator_mode === false
-      ? AUTO_MODES.filter((m) => m.mode !== 'creator')
-      : AUTO_MODES;
+  const autoModes = AUTO_MODES;
 
   $: auto = $status?.auto_power ?? false;
   $: acProfile = $status?.ac_profile ?? 'balanced';

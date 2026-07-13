@@ -55,9 +55,9 @@ fang/
   remaining packets, protocol type, data size, command class, command id,
   80-byte args, CRC (XOR of bytes 2..88), reserved. Commands implemented and
   byte-verified against the razer-laptop-control-no-dkms source:
-  - get/set performance mode (Balanced / Gaming / Creator / Custom)
+  - get/set performance mode (Silent / Balanced / Gaming / Custom)
   - get/set CPU boost & GPU boost (Custom mode)
-  - get/set fan mode: auto or manual RPM per fan
+  - get/set fan mode: auto, manual RPM, or a software temperature curve
 - **Socket API types** (serde): requests `get_status`, `set_perf_mode`,
   `set_fan`, `subscribe`; responses `{id, ok, data|error}`; pushed events
   `telemetry` (1 Hz) and `state_changed`.
@@ -77,7 +77,7 @@ fang/
 - **Persistence**: `/var/lib/fangd/state.json`; reapplied on startup and after
   suspend/resume (logind `PrepareForSleep`, Linux only).
 - **Server**: Unix socket `/run/fangd.sock`, `0660 root:fang` so the `fang`
-  group covers UI access without root. `--tcp 127.0.0.1:7331` for dev.
+  group covers UI access without root. Mock-only loopback TCP for development.
 - **Error handling**: HID write failures retried once, then reported in the
   response; never silently dropped.
 
@@ -91,10 +91,10 @@ fang/
 - Screens:
   1. **Dashboard** — live CPU/GPU temp gauges, fan RPM, 60 s sparklines,
      current mode hero card.
-  2. **Performance** — mode cards (Balanced / Gaming / Creator / Custom);
+  2. **Performance** — mode cards (Silent / Balanced / Gaming / Custom);
      Custom reveals CPU/GPU boost sliders; active card glows green.
-  3. **Fan** — auto ↔ manual toggle, RPM slider with safe bounds from model
-     table.
+  3. **Fan** — auto, manual RPM, and editable temperature curves with safe
+     bounds and a mandatory thermal override.
   4. **Settings** — autostart, close-to-tray, daemon connection info.
 - Daemon unreachable → onboarding screen with install/enable one-liners.
 - Theme: charcoal `#0f1113` background, `#1a1d20` cards, Razer green `#44d62c`

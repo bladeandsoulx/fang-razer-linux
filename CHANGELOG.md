@@ -4,6 +4,37 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-07-12 — Fan curves & safety hardening
+
+### Added
+- **Custom fan curves.** Define 2–8 temperature/RPM points; the daemon uses the
+  hotter CPU/GPU sensor and linearly interpolates the target between points.
+- **Mandatory thermal override.** Manual and Curve modes are forced to the
+  model's maximum fan target at CPU ≥95 °C or GPU ≥87 °C. The guard cannot be
+  disabled and uses hysteresis before releasing.
+- **Sensor-loss watchdog.** Manual and Curve start at maximum RPM and only
+  relax after a fresh CPU reading. A stale, missing or implausible CPU sensor
+  forces maximum fans, with automatic hwmon rediscovery.
+- **App/daemon API handshake.** Read-only status remains available across
+  versions, but hardware writes are rejected unless both packages use the same
+  socket API.
+
+### Changed
+- TCP is now strictly a development transport: it requires mock mode and a
+  numeric loopback address.
+- DDC and GPU helper programs now run outside the thermal-control lock with
+  hard timeouts, so a slow helper cannot delay the 1 Hz fan guard.
+- Stopping or crashing the service restores EC automatic fan control. systemd
+  runs a second restore helper after shutdown as a fallback.
+
+### Fixed
+- All Cargo, npm, Tauri and lockfile versions now agree on 0.8.0. The desktop
+  package requires a compatible 0.8.x fangd package, and CI checks version
+  synchronization.
+
+### Removed
+- **Creator mode** has been removed from the protocol, daemon, tray and UI.
+
 ## [0.7.0] — 2026-07-07 — Power-source automation
 
 ### Added
@@ -141,6 +172,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.8.0]: https://github.com/solomonmorse/fang/releases/tag/v0.8.0
 [0.7.0]: https://github.com/solomonmorse/fang/releases/tag/v0.7.0
 [0.6.0]: https://github.com/solomonmorse/fang/releases/tag/v0.6.0
 [0.5.0]: https://github.com/solomonmorse/fang/releases/tag/v0.5.0

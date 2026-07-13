@@ -7,7 +7,6 @@
   const MODE_LABEL = {
     silent: 'Silent',
     balanced: 'Balanced',
-    creator: 'Creator',
     gaming: 'Gaming',
     custom: 'Custom'
   };

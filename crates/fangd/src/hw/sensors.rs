@@ -16,6 +16,7 @@ pub struct Readings {
 
 pub struct Sensors {
     cpu_temp_file: Option<PathBuf>,
+    cpu_temp_failures: u8,
     nvml: NvmlState,
     nvidia_pm_dir: Option<PathBuf>,
     rapl: Option<Rapl>,
@@ -34,6 +35,8 @@ enum NvmlState {
     /// Init was attempted and failed (no driver); don't retry every tick.
     Unavailable,
 }
+
+const CPU_REDISCOVER_AFTER_FAILURES: u8 = 5;
 
 /// CPU package power via the RAPL energy counter (root-readable). Power is
 /// the energy delta between consecutive samples.
@@ -107,6 +110,7 @@ impl Sensors {
         }
         Sensors {
             cpu_temp_file,
+            cpu_temp_failures: 0,
             // Deferred: initialized on the first sample taken while the card is
             // awake, so neither startup nor sampling wakes a suspended dGPU.
             nvml: NvmlState::Untried,
@@ -116,12 +120,7 @@ impl Sensors {
     }
 
     pub fn read(&mut self) -> Readings {
-        let cpu_temp_c = self
-            .cpu_temp_file
-            .as_ref()
-            .and_then(|p| fs::read_to_string(p).ok())
-            .and_then(|s| s.trim().parse::<f32>().ok())
-            .map(|milli| milli / 1000.0);
+        let cpu_temp_c = self.cpu_temperature();
         let cpu_power_w = self.rapl.as_mut().and_then(Rapl::read_watts);
         let (gpu_temp_c, gpu_power_w) = self.gpu_reading();
         Readings {
@@ -130,6 +129,38 @@ impl Sensors {
             cpu_power_w,
             gpu_power_w,
         }
+    }
+
+    fn cpu_temperature(&mut self) -> Option<f32> {
+        let reading = self.cpu_temp_file.as_ref().and_then(|path| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|raw| parse_cpu_temp(&raw))
+        });
+        if reading.is_some() {
+            self.cpu_temp_failures = 0;
+            return reading;
+        }
+
+        self.cpu_temp_failures = self.cpu_temp_failures.saturating_add(1);
+        if self.cpu_temp_failures < CPU_REDISCOVER_AFTER_FAILURES {
+            return None;
+        }
+
+        let previous = self.cpu_temp_file.clone();
+        self.cpu_temp_file = find_cpu_temp();
+        self.cpu_temp_failures = 0;
+        if self.cpu_temp_file != previous {
+            match &self.cpu_temp_file {
+                Some(path) => log::info!("rediscovered CPU temp source: {}", path.display()),
+                None => log::warn!("CPU temp source disappeared; continuing max-fan failsafe"),
+            }
+        }
+        self.cpu_temp_file.as_ref().and_then(|path| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|raw| parse_cpu_temp(&raw))
+        })
     }
 
     /// dGPU temperature and power via NVML — but only when sysfs runtime-PM
@@ -186,6 +217,11 @@ impl Sensors {
     }
 }
 
+fn parse_cpu_temp(raw: &str) -> Option<f32> {
+    let temp = raw.trim().parse::<f32>().ok()? / 1000.0;
+    (temp.is_finite() && (1.0..=125.0).contains(&temp)).then_some(temp)
+}
+
 /// Query only when the card is awake for someone else's sake: with runtime
 /// PM enabled (`control == "auto"`), require the device active *and* held by
 /// at least one other user, so our sampling never becomes the reason the GPU
@@ -240,7 +276,15 @@ fn find_cpu_temp() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::should_query_gpu;
+    use super::{parse_cpu_temp, should_query_gpu};
+
+    #[test]
+    fn rejects_implausible_cpu_temperatures() {
+        assert_eq!(parse_cpu_temp("65000\n"), Some(65.0));
+        assert_eq!(parse_cpu_temp("0\n"), None);
+        assert_eq!(parse_cpu_temp("200000\n"), None);
+        assert_eq!(parse_cpu_temp("not-a-temperature\n"), None);
+    }
 
     #[test]
     fn runtime_pm_off_always_queries() {
@@ -279,6 +323,7 @@ mod tests {
         fs::write(dir.join("runtime_usage"), "0\n").unwrap();
         let mut s = Sensors {
             cpu_temp_file: None,
+            cpu_temp_failures: 0,
             nvml: NvmlState::Untried,
             nvidia_pm_dir: Some(dir.clone()),
             rapl: None,

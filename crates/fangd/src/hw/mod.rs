@@ -1,6 +1,7 @@
 //! Hardware backends: the real Razer EC on Linux, a simulator everywhere.
 
 use crate::state::AppliedState;
+use fang_protocol::api::PerfMode;
 
 pub mod mock;
 #[cfg(target_os = "linux")]
@@ -18,7 +19,6 @@ pub struct ModelInfo {
     pub fan_rpm_max: u16,
     pub has_cpu_boost_oc: bool,
     pub has_bho: bool,
-    pub has_creator_mode: bool,
     pub has_logo: bool,
 }
 
@@ -35,6 +35,12 @@ pub trait Hw: Send {
     fn info(&self) -> ModelInfo;
     /// Push the desired state to the EC. Errors are surfaced to the client.
     fn apply(&mut self, state: &AppliedState) -> Result<(), String>;
+    /// Update an already-manual fan target without reapplying unrelated state.
+    /// Used by software fan curves and the mandatory thermal guard.
+    fn set_fan_target(&mut self, rpm: u16) -> Result<(), String>;
+    /// Leave software fan control safely by restoring the EC's automatic fan
+    /// policy. Used on SIGTERM and again from systemd's ExecStopPost fallback.
+    fn restore_auto_fan(&mut self, perf_mode: PerfMode) -> Result<(), String>;
     fn sample(&mut self) -> Sample;
 }
 

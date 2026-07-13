@@ -23,6 +23,9 @@ tokio = { version = "1", features = [
 log = "0.4"
 env_logger = "0.11"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 hidapi = "2"
 nvml-wrapper = "0.10"
@@ -34,13 +37,14 @@ extended-description = "Privileged daemon exposing performance modes, fan contro
 depends = "$auto"
 section = "utils"
 priority = "optional"
-assets = [
-    ["target/release/fangd", "usr/bin/", "755"],
-    ["../../packaging/fangd.service", "lib/systemd/system/", "644"],
-]
+assets = [["target/release/fangd", "usr/bin/", "755"]]
 maintainer-scripts = "../../packaging/deb"
 
 [package.metadata.deb.systemd-units]
+# The unit lives in packaging/, not the maintainer-scripts dir; point cargo-deb
+# at it so it installs the unit AND generates the enable/start postinst snippets
+# (without this it silently ships a service that never starts).
+unit-scripts = "../../packaging"
 unit-name = "fangd"
 enable = true
 start = true

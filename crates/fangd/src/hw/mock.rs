@@ -14,6 +14,7 @@ pub struct MockHw {
     rpm: [f32; 2],
     cpu_temp: f32,
     gpu_temp: f32,
+    software_fan_target: Option<u16>,
 }
 
 impl MockHw {
@@ -24,16 +25,17 @@ impl MockHw {
             rpm: [2300.0, 2280.0],
             cpu_temp: 52.0,
             gpu_temp: 46.0,
+            software_fan_target: None,
         }
     }
 
     fn target_rpm(&self) -> f32 {
-        match self.state.fan {
-            FanMode::Manual { rpm } => rpm as f32,
+        match &self.state.fan {
+            FanMode::Manual { rpm } => self.software_fan_target.unwrap_or(*rpm) as f32,
+            FanMode::Curve { .. } => self.software_fan_target.unwrap_or(5000) as f32,
             FanMode::Auto => match self.state.perf_mode {
                 PerfMode::Silent => 2200.0,
                 PerfMode::Balanced => 2600.0,
-                PerfMode::Creator => 3300.0,
                 PerfMode::Gaming => 3800.0,
                 PerfMode::Custom => 3400.0,
             },
@@ -44,7 +46,6 @@ impl MockHw {
         match self.state.perf_mode {
             PerfMode::Silent => (54.0, 48.0),
             PerfMode::Balanced => (58.0, 52.0),
-            PerfMode::Creator => (68.0, 63.0),
             PerfMode::Gaming => (74.0, 70.0),
             PerfMode::Custom => (70.0, 66.0),
         }
@@ -54,7 +55,6 @@ impl MockHw {
         match self.state.perf_mode {
             PerfMode::Silent => (16.0, 9.0),
             PerfMode::Balanced => (28.0, 18.0),
-            PerfMode::Creator => (45.0, 60.0),
             PerfMode::Gaming => (58.0, 92.0),
             PerfMode::Custom => (50.0, 70.0),
         }
@@ -72,13 +72,30 @@ impl Hw for MockHw {
             fan_rpm_max: 5000,
             has_cpu_boost_oc: true,
             has_bho: true,
-            has_creator_mode: true,
             has_logo: true,
         }
     }
 
     fn apply(&mut self, state: &AppliedState) -> Result<(), String> {
-        self.state = *state;
+        self.software_fan_target = match &state.fan {
+            FanMode::Auto => None,
+            // Manual and Curve both start at max. Core lowers the target only
+            // after the mandatory CPU sensor has produced a fresh reading.
+            FanMode::Manual { .. } | FanMode::Curve { .. } => Some(5000),
+        };
+        self.state = state.clone();
+        Ok(())
+    }
+
+    fn set_fan_target(&mut self, rpm: u16) -> Result<(), String> {
+        self.software_fan_target = Some(rpm.clamp(2200, 5000));
+        Ok(())
+    }
+
+    fn restore_auto_fan(&mut self, perf_mode: PerfMode) -> Result<(), String> {
+        self.state.perf_mode = perf_mode;
+        self.state.fan = FanMode::Auto;
+        self.software_fan_target = None;
         Ok(())
     }
 

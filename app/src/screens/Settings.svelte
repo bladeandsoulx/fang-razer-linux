@@ -1,7 +1,7 @@
 <script>
   import Toggle from '../lib/components/Toggle.svelte';
   import Icon from '../lib/components/Icon.svelte';
-  import { status, uiSettings, connected } from '../lib/stores.js';
+  import { status, uiSettings, connected, versionInfo } from '../lib/stores.js';
   import { saveUiSettings, setBho, openExternal, inTauri } from '../lib/bridge.js';
 
   let slider = null; // local slider position before release
@@ -52,7 +52,11 @@
       <dt>device</dt>
       <dd>{$status?.model ?? '--'}</dd>
       <dt>version</dt>
-      <dd>fangd {$status?.daemon_version ?? '--'}</dd>
+      <dd>Fang {$versionInfo.app_version || '--'} · fangd {$status?.daemon_version ?? '--'}</dd>
+      <dt>API</dt>
+      <dd class:ok={$versionInfo.compatible} class:bad={!$versionInfo.compatible}>
+        app {$versionInfo.app_api_version} · daemon {$versionInfo.daemon_api_version ?? '--'}
+      </dd>
       <dt>transport</dt>
       <dd>{inTauri ? 'unix socket / tcp' : 'browser simulator'}</dd>
     </dl>

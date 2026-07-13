@@ -1,7 +1,8 @@
 //! JSON-lines socket server plus the 1 Hz telemetry loop.
 
 use crate::core::Core;
-use fang_protocol::api::{Command, Event, Request, Response, Telemetry};
+use crate::peripherals::{read_snapshot, Peripherals, SnapshotStore};
+use fang_protocol::api::{Command, Event, Request, Response, Telemetry, API_VERSION};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -22,7 +23,7 @@ fn event_line(event: &Event) -> String {
 
 /// 1 Hz: sample sensors, broadcast telemetry, and reapply state after a
 /// suspend/resume (detected as a wall-clock jump between ticks).
-pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
+pub async fn telemetry_loop(core: SharedCore, peripherals: SnapshotStore, bus: EventBus) {
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut last_wall = SystemTime::now();
@@ -42,16 +43,21 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
             core.reapply();
         }
         let s = core.sample();
-        let auto_status = core.power_tick(on_ac);
+        let auto_changed = core.power_tick(on_ac);
+        let auto_status = auto_changed.then(|| core.status(&read_snapshot(&peripherals)));
         drop(core);
 
         let telemetry = Telemetry {
-            cpu_temp_c: s.cpu_temp_c,
-            gpu_temp_c: s.gpu_temp_c,
-            cpu_power_w: s.cpu_power_w,
-            gpu_power_w: s.gpu_power_w,
+            cpu_temp_c: s.hw.cpu_temp_c,
+            gpu_temp_c: s.hw.gpu_temp_c,
+            cpu_power_w: s.hw.cpu_power_w,
+            gpu_power_w: s.hw.gpu_power_w,
             on_ac,
-            fan_rpm: s.fan_rpm,
+            fan_rpm: s.hw.fan_rpm,
+            fan_target_rpm: s.fan_target_rpm,
+            thermal_override_active: s.thermal_override_active,
+            thermal_sensor_ok: s.thermal_sensor_ok,
+            thermal_override_reason: s.thermal_override_reason,
             ts_ms: now
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -65,7 +71,15 @@ pub async fn telemetry_loop(core: SharedCore, bus: EventBus) {
     }
 }
 
-pub async fn handle_conn<S>(stream: S, core: SharedCore, bus: EventBus)
+async fn current_status(
+    core: &SharedCore,
+    peripherals: &Peripherals,
+) -> fang_protocol::api::Status {
+    let snapshot = peripherals.snapshot();
+    core.lock().await.status(&snapshot)
+}
+
+pub async fn handle_conn<S>(stream: S, core: SharedCore, peripherals: Peripherals, bus: EventBus)
 where
     S: AsyncRead + AsyncWrite + Send + 'static,
 {
@@ -81,47 +95,87 @@ where
         let resp = match serde_json::from_str::<Request>(&line) {
             Ok(req) => {
                 let id = req.id;
-                match req.cmd {
-                    Command::Ping => Response::ok(id, "pong"),
-                    Command::GetStatus => {
-                        let core = core.lock().await;
-                        Response::ok(id, core.status())
-                    }
-                    Command::Subscribe => {
-                        if forwarder.is_none() {
-                            let mut rx = bus.subscribe();
-                            let w = Arc::clone(&write);
-                            forwarder = Some(tokio::spawn(async move {
-                                while let Ok(msg) = rx.recv().await {
-                                    let mut w = w.lock().await;
-                                    if w.write_all(msg.as_bytes()).await.is_err() {
-                                        break;
-                                    }
-                                }
-                            }));
+                if req.cmd.is_mutating() && req.api_version != API_VERSION {
+                    Response::err(
+                        id,
+                        format!(
+                            "incompatible Fang API: client {}, daemon {API_VERSION}; update both packages",
+                            req.api_version
+                        ),
+                    )
+                } else {
+                    match req.cmd {
+                        Command::Ping => Response::ok(id, "pong"),
+                        Command::GetStatus => {
+                            Response::ok(id, current_status(&core, &peripherals).await)
                         }
-                        Response::ok(id, "subscribed")
-                    }
-                    ref cmd @ (Command::SetPerfMode { .. }
-                    | Command::SetFan { .. }
-                    | Command::SetGpuMode { .. }
-                    | Command::SetBho { .. }
-                    | Command::SetLighting { .. }
-                    | Command::SetColorPreset { .. }
-                    | Command::SetMonitorBrightness { .. }
-                    | Command::SetAutoPower { .. }) => {
-                        let mut core = core.lock().await;
-                        match core.handle_set(cmd) {
-                            Ok(changed) => {
-                                let status = core.status();
-                                drop(core);
-                                if changed {
+                        Command::Subscribe => {
+                            if forwarder.is_none() {
+                                let mut rx = bus.subscribe();
+                                let w = Arc::clone(&write);
+                                forwarder = Some(tokio::spawn(async move {
+                                    while let Ok(msg) = rx.recv().await {
+                                        let mut w = w.lock().await;
+                                        if w.write_all(msg.as_bytes()).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                }));
+                            }
+                            Response::ok(id, "subscribed")
+                        }
+                        Command::SetGpuMode { gpu_mode } => {
+                            match peripherals.set_gpu_mode(gpu_mode).await {
+                                Ok(()) => {
+                                    let status = current_status(&core, &peripherals).await;
                                     let _ =
                                         bus.send(event_line(&Event::StateChanged(status.clone())));
+                                    Response::ok(id, status)
                                 }
-                                Response::ok(id, status)
+                                Err(e) => Response::err(id, e),
                             }
-                            Err(e) => Response::err(id, e),
+                        }
+                        Command::SetColorPreset { value } => {
+                            match peripherals.set_color_preset(value).await {
+                                Ok(()) => {
+                                    let status = current_status(&core, &peripherals).await;
+                                    let _ =
+                                        bus.send(event_line(&Event::StateChanged(status.clone())));
+                                    Response::ok(id, status)
+                                }
+                                Err(e) => Response::err(id, e),
+                            }
+                        }
+                        Command::SetMonitorBrightness { value } => {
+                            match peripherals.set_monitor_brightness(value).await {
+                                Ok(()) => {
+                                    let status = current_status(&core, &peripherals).await;
+                                    let _ =
+                                        bus.send(event_line(&Event::StateChanged(status.clone())));
+                                    Response::ok(id, status)
+                                }
+                                Err(e) => Response::err(id, e),
+                            }
+                        }
+                        ref cmd @ (Command::SetPerfMode { .. }
+                        | Command::SetFan { .. }
+                        | Command::SetBho { .. }
+                        | Command::SetLighting { .. }
+                        | Command::SetAutoPower { .. }) => {
+                            let snapshot = peripherals.snapshot();
+                            let mut core = core.lock().await;
+                            match core.handle_set(cmd) {
+                                Ok(changed) => {
+                                    let status = core.status(&snapshot);
+                                    drop(core);
+                                    if changed {
+                                        let _ = bus
+                                            .send(event_line(&Event::StateChanged(status.clone())));
+                                    }
+                                    Response::ok(id, status)
+                                }
+                                Err(e) => Response::err(id, e),
+                            }
                         }
                     }
                 }

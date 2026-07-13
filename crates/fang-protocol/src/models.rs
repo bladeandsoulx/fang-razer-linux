@@ -2,10 +2,8 @@
 //!
 //! Imported from Razer-Control's `laptops.json` (GPL-2.0,
 //! <https://github.com/Rintastic247/Razer-Control>), the maintained
-//! continuation of razer-laptop-control. Feature flags: `boost` = CPU
-//! overclock level, `bho` = battery charge limiter, `creator_mode` = EC
-//! accepts power mode 2 (most ECs do NOT define it — never send mode 2
-//! unless this flag is set, undefined modes trip EC failsafes).
+//! continuation of razer-laptop-control. Feature flags cover CPU overclock,
+//! the battery charge limiter, and the lid logo LED.
 //!
 //! Listed PIDs are recognized models with `verified: true`; unknown PIDs get
 //! [`FALLBACK`] limits and `verified: false`.
@@ -19,8 +17,6 @@ pub struct LaptopModel {
     pub has_cpu_boost_oc: bool,
     /// Supports the Battery Health Optimizer charge limiter (feature "bho").
     pub has_bho: bool,
-    /// EC defines power mode 2 (feature "creator_mode").
-    pub has_creator_mode: bool,
     /// Has a lid logo LED (feature "logo").
     pub has_logo: bool,
 }
@@ -33,7 +29,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -43,7 +38,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -53,7 +47,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -63,7 +56,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -73,7 +65,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -83,7 +74,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -93,7 +83,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -103,7 +92,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -113,7 +101,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -123,7 +110,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -133,7 +119,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -143,7 +128,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -153,7 +137,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -163,7 +146,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -173,7 +155,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -183,7 +164,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -193,7 +173,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -203,7 +182,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -213,7 +191,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -223,7 +200,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -233,7 +209,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -243,7 +218,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -253,7 +227,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -263,7 +236,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -273,7 +245,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5300,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -283,7 +254,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -293,7 +263,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -303,7 +272,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: false,
     },
     LaptopModel {
@@ -313,7 +281,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -323,7 +290,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 4300,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -333,7 +299,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -343,7 +308,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -353,7 +317,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -363,7 +326,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 4300,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -373,7 +335,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: false,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -383,7 +344,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -393,7 +353,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: false,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -403,7 +362,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -413,7 +371,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -423,7 +380,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -433,7 +389,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -443,9 +398,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        // Creator (EC mode 2) is one of Razer's standard perf modes; enabled
-        // on both Blade 18 generations.
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -455,7 +407,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -465,7 +416,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -475,7 +425,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: true,
         has_logo: true,
     },
     LaptopModel {
@@ -485,7 +434,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -495,7 +443,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
     LaptopModel {
@@ -505,7 +452,6 @@ pub const MODELS: &[LaptopModel] = &[
         fan_rpm_max: 5000,
         has_cpu_boost_oc: true,
         has_bho: true,
-        has_creator_mode: false,
         has_logo: true,
     },
 ];
@@ -518,7 +464,6 @@ pub const FALLBACK: LaptopModel = LaptopModel {
     fan_rpm_max: 5000,
     has_cpu_boost_oc: false,
     has_bho: false,
-    has_creator_mode: false,
     has_logo: false,
 };
 
@@ -549,8 +494,6 @@ mod tests {
     fn known_models_have_expected_flags() {
         let b18_2024 = by_pid(0x02B8).expect("Blade 18 2024");
         assert!(b18_2024.has_cpu_boost_oc && b18_2024.has_bho);
-        // Creator (EC mode 2) is a standard Razer mode, enabled for this model.
-        assert!(b18_2024.has_creator_mode);
         assert!(b18_2024.has_logo);
         assert!(by_pid(0x02A0).is_some());
         // the only logo-less model in the table

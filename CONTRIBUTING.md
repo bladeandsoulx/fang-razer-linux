@@ -27,6 +27,10 @@ cd app/src-tauri && cargo test --bin fang    # xrandr/kscreen/colormgr parsers
 
 CI also enforces `cargo fmt` and `cargo clippy -- -D warnings`.
 
+Before cutting a release, run `node app/scripts/version.mjs set X.Y.Z`, update
+the newest CHANGELOG entry, then run `node app/scripts/version.mjs check`.
+CI rejects mismatched Cargo, npm, Tauri, lockfile or changelog versions.
+
 ## Adding support for your Blade
 
 1. Run through [HARDWARE_TESTING.md](HARDWARE_TESTING.md) on your machine.

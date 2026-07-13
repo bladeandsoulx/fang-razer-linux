@@ -11,11 +11,10 @@ lsusb -d 1532:            # note the product id (e.g. 1532:02a0)
 sensors | head -30        # confirm coretemp is visible
 ```
 
-If your PID is **not** `02a0` (Blade 18 2023), Fang runs in "unverified"
-mode: controls work but fan limits use conservative defaults, and the UI
-shows a warning badge. To promote your model to verified, add its PID and
-fan limits to `crates/fang-protocol/src/models.rs` (find the limits for your
-model in razer-laptop-control's `laptops.json`).
+Fang recognizes the PIDs in `crates/fang-protocol/src/models.rs`. An unknown
+Razer laptop PID runs in "unverified" mode: controls work with conservative
+fan limits and the UI shows a warning badge. Add the PID and verified limits
+to the model table before treating it as fully supported.
 
 ## 1. Install and check the daemon
 
@@ -57,10 +56,14 @@ errors after each switch — there should be none.
 ## 5. Manual fan
 
 Set fan to Manual at 3000 RPM. Within ~10 s the fans should be audible and
-telemetry `fan_rpm` should read 3000 ± 200. Then back to Auto — the EC curve
-resumes (RPM drifts back toward idle). **Don't leave a low manual RPM set
-under heavy load**; the EC has its own thermal failsafe but there's no
-reason to fight it.
+telemetry `fan_rpm` should report the EC's 3000 RPM target. Then switch back to
+Auto and confirm the EC curve's target changes. Razer exposes a setpoint, not a
+live tachometer, so this validates command/readback rather than measured speed.
+
+Switch to Curve, adjust one point, and apply it. The active target should move
+as the hotter CPU/GPU temperature crosses curve points. Manual and Curve modes
+always force the model's maximum target at CPU ≥95 °C or GPU ≥87 °C; this guard
+cannot be disabled. Do not deliberately overheat the laptop to test it.
 
 ## 6. Custom mode boosts
 
@@ -110,6 +113,9 @@ Disable to resume normal charging to 100%.
 
 - `sudo systemctl restart fangd` → previous mode/fan settings re-applied
   (journal: applying state line, UI reflects it).
+- Put the fan in Manual mode, then `sudo systemctl stop fangd`. The journal
+  should report `restored EC automatic fan control`; starting the service
+  again safely reapplies the saved Manual preference.
 - Suspend, wait 30 s, resume → journal shows
   `wall clock jump detected (resume from suspend); reapplying state`.
 
@@ -119,7 +125,8 @@ Disable to resume normal charging to 100%.
 sudo systemctl disable --now fangd     # stop controlling the EC
 ```
 
-Reboot returns the EC fully to its default behavior. To remove everything:
+Stopping now restores EC automatic fan control; reboot still returns all EC
+settings to firmware defaults. To remove everything:
 `sudo apt remove fang fangd` (deb installs) or delete `/usr/bin/fangd`,
 `/lib/systemd/system/fangd.service`, `/var/lib/fangd`.
 

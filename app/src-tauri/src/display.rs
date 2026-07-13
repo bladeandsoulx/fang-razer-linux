@@ -7,6 +7,7 @@
 //!      included), not just the built-in panel.
 //!   2. `kscreen-doctor` (KDE).
 //!   3. `xrandr` (bare X11).
+//!
 //! Non-Linux builds simulate a 240 Hz panel for development.
 
 use serde::Serialize;
@@ -230,7 +231,7 @@ mod backend {
         fn prop_bool(props: &HashMap<String, OwnedValue>, key: &str) -> bool {
             props
                 .get(key)
-                .and_then(|v| bool::try_from(v.clone()).ok())
+                .and_then(|v| bool::try_from(v).ok())
                 .unwrap_or(false)
         }
 

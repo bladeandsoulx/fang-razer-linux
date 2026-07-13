@@ -3,13 +3,13 @@
 **Synapse-style control center for Razer Blade laptops on Linux.**
 Performance modes, fan control and live thermals — no Windows required.
 
-- 🎛 **Performance modes** — Silent / Balanced / Creator / Gaming, plus Custom
+- 🎛 **Performance modes** — Silent / Balanced / Gaming, plus Custom
   with per-CPU/GPU power levels (including CPU overclock boost on supported
   models)
 - 🔌 **Power automation** — auto-switch to a chosen profile when you plug in or
   unplug, with an independent fan choice (mode curve or pinned-quiet) per source
-- 🌀 **Fan control** — automatic EC curve or manual RPM, clamped to per-model
-  safe limits
+- 🌀 **Fan control** — automatic EC curve, manual RPM, or an editable software
+  curve, clamped to per-model limits with a non-disableable thermal override
 - 🔋 **Battery Health Optimizer** — Synapse-style charge limiter (50–80 %) to
   slow battery wear, on models that support it
 - 🎹 **Lighting** — keyboard backlight brightness, hardware effects (Static RGB
@@ -79,7 +79,7 @@ Without the group step the app just shows "daemon offline" — the socket is
 ## Supported hardware
 
 Fang recognizes **48 Blade models** (2015–2025) with per-model fan limits and
-feature flags (CPU overclock boost, battery charge limiter, Creator mode)
+feature flags (CPU overclock boost, battery charge limiter, lid logo LED)
 imported from [Razer-Control](https://github.com/Rintastic247/Razer-Control)'s
 device table (GPL-2.0). See
 [`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs)
@@ -106,20 +106,29 @@ cargo run -p fangd -- --mock --tcp 127.0.0.1:7331
 cd app && npm install && npm run tauri dev
 ```
 
+TCP is accepted only with `--mock` and a numeric loopback address. Real
+hardware control is always restricted to the group-protected Unix socket.
+
 Or UI-only in a plain browser (built-in simulator, no daemon at all):
 
 ```sh
 cd app && npm run dev    # http://localhost:1420
 ```
 
-Run the tests with `cargo test --workspace`.
+Run the tests with `cargo test --workspace`. Release versions are kept in sync
+with `node app/scripts/version.mjs check`; use the same tool with
+`set MAJOR.MINOR.PATCH` when preparing a release.
 
 ## Safety notes
 
-- Manual fan RPM is clamped to the model profile's limits; the EC keeps its
-  own thermal failsafes.
-- Stopping the daemon (`systemctl stop fangd`) leaves the EC in its last
-  state; it returns to defaults on reboot.
+- Manual RPM and custom curves are clamped to the model profile's limits. A
+  daemon guard that cannot be disabled forces maximum fans at CPU ≥95 °C or
+  GPU ≥87 °C, in addition to the EC's own thermal failsafes. Missing or stale
+  CPU telemetry also forces maximum fans.
+- Stopping the daemon (`systemctl stop fangd`) restores the EC's automatic fan
+  policy. systemd repeats that restore after the process exits as a fallback.
+- App and daemon packages negotiate socket API version 1. Read-only status
+  remains available on a mismatch, while hardware-changing commands are blocked.
 - Custom CPU "Boost" raises power limits — expect heat and fan noise.
 
 ## Credits & license
