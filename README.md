@@ -109,7 +109,7 @@ to the `fang` group so the app can reach the daemon socket, then log out and
 back in:
 
 ```sh
-sudo apt install ./fangd_*.deb ./fang_*.deb
+sudo apt install ./fangd_*.deb ./Fang_*.deb
 sudo usermod -aG fang "$USER"   # then log out and back in
 ```
 
@@ -167,7 +167,7 @@ with `node app/scripts/version.mjs check`; use the same tool with
   CPU telemetry also forces maximum fans.
 - Stopping the daemon (`systemctl stop fangd`) restores the EC's automatic fan
   policy. systemd repeats that restore after the process exits as a fallback.
-- App and daemon packages negotiate socket API version 1. Read-only status
+- App and daemon packages negotiate socket API version 2. Read-only status
   remains available on a mismatch, while hardware-changing commands are blocked.
 - Custom CPU "Boost" raises power limits — expect heat and fan noise.
 
