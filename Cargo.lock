@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "fang-protocol"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "fangd"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "env_logger",
  "fang-protocol",

@@ -95,6 +95,10 @@ speak DDC/CI):
   should visibly warm or cool. `ddcutil getvcp 14` reflects the change.
 - **External-monitor brightness** — the luminance slider should dim/brighten
   the panel; `ddcutil getvcp 10` tracks it.
+- **DDC/CI recovery** — start `fangd` with the monitor disconnected, then
+  connect and wake it. The controls should appear automatically within 15–30
+  seconds without restarting the daemon. The **Rescan** action should trigger
+  the same recovery immediately.
 - **Internal-panel brightness** — the laptop-panel slider changes the built-in
   screen's backlight instantly (through logind, no root); clamped to 5–100 %.
 

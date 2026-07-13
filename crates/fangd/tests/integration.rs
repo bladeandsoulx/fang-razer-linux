@@ -72,7 +72,7 @@ fn daemon_end_to_end() {
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["data"]["mock"], true);
     assert_eq!(v["data"]["perf_mode"], "balanced");
-    assert_eq!(v["data"]["api_version"], 1);
+    assert_eq!(v["data"]["api_version"], 2);
 
     // Old clients may inspect status, but cannot mutate hardware without the
     // matching API version.
@@ -88,7 +88,7 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":2,"api_version":1,"cmd":"set_perf_mode","perf_mode":"gaming"}"#,
+        r#"{"id":2,"api_version":2,"cmd":"set_perf_mode","perf_mode":"gaming"}"#,
     );
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["data"]["perf_mode"], "gaming");
@@ -97,7 +97,7 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":3,"api_version":1,"cmd":"set_fan","mode":"manual","rpm":9000}"#,
+        r#"{"id":3,"api_version":2,"cmd":"set_fan","mode":"manual","rpm":9000}"#,
     );
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["data"]["fan"]["mode"], "manual");
@@ -107,14 +107,14 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":4,"api_version":1,"cmd":"set_perf_mode","perf_mode":"silent"}"#,
+        r#"{"id":4,"api_version":2,"cmd":"set_perf_mode","perf_mode":"silent"}"#,
     );
     assert_eq!(v["data"]["fan"]["mode"], "manual", "{v}");
     assert_eq!(v["data"]["fan"]["rpm"], 5000);
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":5,"api_version":1,"cmd":"set_fan","mode":"auto"}"#,
+        r#"{"id":5,"api_version":2,"cmd":"set_fan","mode":"auto"}"#,
     );
     assert_eq!(v["data"]["fan"]["mode"], "auto", "{v}");
 
@@ -122,7 +122,7 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":7,"api_version":1,"cmd":"set_fan","mode":"curve","points":[{"temp_c":40,"rpm":2200},{"temp_c":70,"rpm":3400},{"temp_c":90,"rpm":5000}]}"#,
+        r#"{"id":7,"api_version":2,"cmd":"set_fan","mode":"curve","points":[{"temp_c":40,"rpm":2200},{"temp_c":70,"rpm":3400},{"temp_c":90,"rpm":5000}]}"#,
     );
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["data"]["fan"]["mode"], "curve");
@@ -132,7 +132,7 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":8,"api_version":1,"cmd":"set_fan","mode":"curve","points":[{"temp_c":50,"rpm":4000},{"temp_c":80,"rpm":3000}]}"#,
+        r#"{"id":8,"api_version":2,"cmd":"set_fan","mode":"curve","points":[{"temp_c":50,"rpm":4000},{"temp_c":80,"rpm":3000}]}"#,
     );
     assert_eq!(v["ok"], false, "{v}");
     assert!(v["error"].as_str().unwrap().contains("must not decrease"));
@@ -144,11 +144,20 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":11,"api_version":1,"cmd":"set_gpu_mode","gpu_mode":"dedicated"}"#,
+        r#"{"id":11,"api_version":2,"cmd":"set_gpu_mode","gpu_mode":"dedicated"}"#,
     );
     assert_eq!(v["ok"], true, "{v}");
     assert_eq!(v["data"]["gpu_mode"], "dedicated");
     assert_eq!(v["data"]["gpu_mode_pending"], true);
+
+    // DDC discovery can be retried without restarting the daemon.
+    let v = roundtrip(
+        &mut reader,
+        &mut writer,
+        r#"{"id":13,"api_version":2,"cmd":"rescan_ddc"}"#,
+    );
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["data"]["color_ddc"], true, "{v}");
 
     // subscribe → telemetry event arrives within a few seconds
     let v = roundtrip(&mut reader, &mut writer, r#"{"id":6,"cmd":"subscribe"}"#);
@@ -174,7 +183,7 @@ fn daemon_end_to_end() {
     let v = roundtrip(
         &mut reader,
         &mut writer,
-        r#"{"id":12,"api_version":1,"cmd":"set_fan","mode":"auto"}"#,
+        r#"{"id":12,"api_version":2,"cmd":"set_fan","mode":"auto"}"#,
     );
     assert_eq!(v["data"]["fan"]["mode"], "auto", "{v}");
     assert_eq!(v["data"]["fan_curve"].as_array().unwrap().len(), 3);

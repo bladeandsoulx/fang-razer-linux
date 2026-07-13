@@ -9,7 +9,7 @@ use crate::gpu::{self, GpuSwitch};
 use fang_protocol::api::{ColorPreset, GpuMode};
 use std::sync::{Arc, Mutex, RwLock};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PeripheralSnapshot {
     pub color_ddc: bool,
     pub color_presets: Vec<ColorPreset>,
@@ -38,15 +38,30 @@ fn write_snapshot(store: &SnapshotStore, next: PeripheralSnapshot) {
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = next;
 }
 
+fn apply_ddc_snapshot(next: &mut PeripheralSnapshot, ddc: &Ddc) {
+    next.color_ddc = ddc.available();
+    next.color_presets = ddc.presets();
+    next.color_current = ddc.current();
+    next.monitor_brightness = ddc.brightness();
+}
+
+fn sync_ddc_snapshot(store: &SnapshotStore, ddc: &Ddc) -> bool {
+    let mut current = store
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let before = current.clone();
+    apply_ddc_snapshot(&mut current, ddc);
+    *current != before
+}
+
 fn capture(ddc: &Ddc, gpu: &dyn GpuSwitch) -> PeripheralSnapshot {
-    PeripheralSnapshot {
-        color_ddc: ddc.available(),
-        color_presets: ddc.presets(),
-        color_current: ddc.current(),
-        monitor_brightness: ddc.brightness(),
+    let mut snapshot = PeripheralSnapshot {
         gpu_mode: gpu.current(),
         gpu_mode_pending: gpu.pending(),
-    }
+        ..PeripheralSnapshot::default()
+    };
+    apply_ddc_snapshot(&mut snapshot, ddc);
+    snapshot
 }
 
 #[derive(Clone)]
@@ -74,6 +89,38 @@ impl Peripherals {
         read_snapshot(&self.snapshot)
     }
 
+    pub fn ddc_available(&self) -> bool {
+        self.snapshot().color_ddc
+    }
+
+    async fn rescan_ddc_inner(&self, only_if_unavailable: bool) -> Result<bool, String> {
+        let ddc = Arc::clone(&self.ddc);
+        let snapshot = Arc::clone(&self.snapshot);
+        tokio::task::spawn_blocking(move || {
+            let mut ddc = ddc
+                .lock()
+                .map_err(|_| "DDC worker lock poisoned".to_string())?;
+            if only_if_unavailable {
+                ddc.rediscover_if_unavailable();
+            } else {
+                ddc.rediscover();
+            }
+            Ok(sync_ddc_snapshot(&snapshot, &ddc))
+        })
+        .await
+        .map_err(|e| format!("DDC rescan worker failed: {e}"))?
+    }
+
+    /// Re-run DDC/CI detection even when a monitor is already cached.
+    pub async fn rescan_ddc(&self) -> Result<bool, String> {
+        self.rescan_ddc_inner(false).await
+    }
+
+    /// Cheap no-op while a monitor is available; otherwise retry discovery.
+    pub async fn rescan_ddc_if_missing(&self) -> Result<bool, String> {
+        self.rescan_ddc_inner(true).await
+    }
+
     pub async fn set_gpu_mode(&self, mode: GpuMode) -> Result<(), String> {
         let gpu = Arc::clone(&self.gpu);
         let snapshot = Arc::clone(&self.snapshot);
@@ -99,11 +146,9 @@ impl Peripherals {
             let mut ddc = ddc
                 .lock()
                 .map_err(|_| "DDC worker lock poisoned".to_string())?;
-            ddc.set(value)?;
-            let mut next = read_snapshot(&snapshot);
-            next.color_current = ddc.current();
-            write_snapshot(&snapshot, next);
-            Ok(())
+            let result = ddc.set(value);
+            sync_ddc_snapshot(&snapshot, &ddc);
+            result
         })
         .await
         .map_err(|e| format!("DDC worker failed: {e}"))?
@@ -116,11 +161,9 @@ impl Peripherals {
             let mut ddc = ddc
                 .lock()
                 .map_err(|_| "DDC worker lock poisoned".to_string())?;
-            ddc.set_brightness(value)?;
-            let mut next = read_snapshot(&snapshot);
-            next.monitor_brightness = ddc.brightness();
-            write_snapshot(&snapshot, next);
-            Ok(())
+            let result = ddc.set_brightness(value);
+            sync_ddc_snapshot(&snapshot, &ddc);
+            result
         })
         .await
         .map_err(|e| format!("DDC worker failed: {e}"))?

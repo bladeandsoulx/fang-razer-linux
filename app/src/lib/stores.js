@@ -8,7 +8,7 @@ export const display = writable(null);
 export const panel = writable(null);
 export const versionInfo = writable({
   app_version: '',
-  app_api_version: 1,
+  app_api_version: 2,
   daemon_api_version: null,
   compatible: false
 });

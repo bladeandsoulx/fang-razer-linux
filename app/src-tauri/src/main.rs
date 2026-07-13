@@ -142,6 +142,12 @@ async fn set_monitor_brightness(client: State<'_, Client>, value: u8) -> Result<
         .await
 }
 
+/// Immediately retry external-monitor DDC/CI discovery.
+#[tauri::command]
+async fn rescan_ddc(client: State<'_, Client>) -> Result<Value, String> {
+    client.request(Command::RescanDdc).await
+}
+
 /// Toggle AC/battery perf-profile automation and set the per-source profiles.
 #[tauri::command]
 async fn set_auto_power(
@@ -314,6 +320,7 @@ fn main() {
             set_lighting,
             set_color_preset,
             set_monitor_brightness,
+            rescan_ddc,
             set_auto_power,
             open_url,
             get_display,

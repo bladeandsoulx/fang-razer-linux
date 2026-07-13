@@ -71,6 +71,31 @@ pub async fn telemetry_loop(core: SharedCore, peripherals: SnapshotStore, bus: E
     }
 }
 
+/// Retry DDC/CI discovery after early boot or when a stale display failed.
+/// No subprocess is launched while a monitor is already available.
+pub async fn ddc_rescan_loop(core: SharedCore, peripherals: Peripherals, bus: EventBus) {
+    let mut tick = tokio::time::interval(Duration::from_secs(15));
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    // `interval` ticks immediately; initial discovery just ran, so wait for
+    // the first real interval and give DRM/i2c device nodes time to appear.
+    tick.tick().await;
+    loop {
+        tick.tick().await;
+        if peripherals.ddc_available() {
+            continue;
+        }
+        match peripherals.rescan_ddc_if_missing().await {
+            Ok(true) => {
+                log::info!("DDC color: monitor recovered by automatic rescan");
+                let status = current_status(&core, &peripherals).await;
+                let _ = bus.send(event_line(&Event::StateChanged(status)));
+            }
+            Ok(false) => {}
+            Err(e) => log::warn!("automatic DDC rescan failed: {e}"),
+        }
+    }
+}
+
 async fn current_status(
     core: &SharedCore,
     peripherals: &Peripherals,
@@ -143,7 +168,11 @@ where
                                         bus.send(event_line(&Event::StateChanged(status.clone())));
                                     Response::ok(id, status)
                                 }
-                                Err(e) => Response::err(id, e),
+                                Err(e) => {
+                                    let status = current_status(&core, &peripherals).await;
+                                    let _ = bus.send(event_line(&Event::StateChanged(status)));
+                                    Response::err(id, e)
+                                }
                             }
                         }
                         Command::SetMonitorBrightness { value } => {
@@ -154,9 +183,21 @@ where
                                         bus.send(event_line(&Event::StateChanged(status.clone())));
                                     Response::ok(id, status)
                                 }
-                                Err(e) => Response::err(id, e),
+                                Err(e) => {
+                                    let status = current_status(&core, &peripherals).await;
+                                    let _ = bus.send(event_line(&Event::StateChanged(status)));
+                                    Response::err(id, e)
+                                }
                             }
                         }
+                        Command::RescanDdc => match peripherals.rescan_ddc().await {
+                            Ok(_) => {
+                                let status = current_status(&core, &peripherals).await;
+                                let _ = bus.send(event_line(&Event::StateChanged(status.clone())));
+                                Response::ok(id, status)
+                            }
+                            Err(e) => Response::err(id, e),
+                        },
                         ref cmd @ (Command::SetPerfMode { .. }
                         | Command::SetFan { .. }
                         | Command::SetBho { .. }

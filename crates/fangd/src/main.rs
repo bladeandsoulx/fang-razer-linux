@@ -111,6 +111,11 @@ async fn main() {
     // DDC and GPU discovery can take seconds. Thermal sampling is already
     // active and remains independent of these subprocess-backed features.
     let peripherals = peripherals::Peripherals::open(args.mock, peripheral_snapshot).await;
+    let ddc_rescan_task = tokio::spawn(server::ddc_rescan_loop(
+        Arc::clone(&core),
+        peripherals.clone(),
+        bus.clone(),
+    ));
 
     #[cfg(unix)]
     if args.tcp.is_none() {
@@ -140,6 +145,7 @@ async fn main() {
             }
         }
         telemetry_task.abort();
+        ddc_rescan_task.abort();
         restore_auto_before_exit(&core).await;
         let _ = std::fs::remove_file(&path);
         return;
@@ -167,6 +173,7 @@ async fn main() {
         }
     }
     telemetry_task.abort();
+    ddc_rescan_task.abort();
     restore_auto_before_exit(&core).await;
 }
 

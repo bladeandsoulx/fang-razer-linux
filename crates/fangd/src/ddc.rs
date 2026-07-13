@@ -25,6 +25,7 @@ const PRESETS: &[(u8, &str)] = &[
     (0x0B, "Custom (User)"),
 ];
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Ddc {
     /// ddcutil display number of the external monitor, if one was found.
     display: Option<u8>,
@@ -44,7 +45,11 @@ pub fn open(mock: bool) -> Ddc {
     if mock {
         Ddc::mock()
     } else {
-        Ddc::discover()
+        let ddc = Ddc::discover();
+        if !ddc.available() {
+            log::info!("DDC color: no external DDC/CI monitor detected");
+        }
+        ddc
     }
 }
 
@@ -59,7 +64,6 @@ impl Ddc {
         }
 
         let Some(display) = detect_external() else {
-            log::info!("DDC color: no external DDC/CI monitor detected");
             return Ddc::none();
         };
         let supported = supported_presets(display);
@@ -132,6 +136,37 @@ impl Ddc {
         self.brightness
     }
 
+    /// Replace the cached monitor with a fresh DDC/CI discovery result.
+    /// Returns true when the externally visible monitor state changed.
+    pub fn rediscover(&mut self) -> bool {
+        if self.mock {
+            return false;
+        }
+        let was_available = self.available();
+        let next = Ddc::discover();
+        if *self == next {
+            return false;
+        }
+        let now_available = next.available();
+        *self = next;
+        if was_available && !now_available {
+            log::info!("DDC color: external monitor is no longer available");
+        }
+        true
+    }
+
+    /// Retry discovery only while no monitor is cached. This keeps the
+    /// background retry loop cheap once a display has been found.
+    pub fn rediscover_if_unavailable(&mut self) -> bool {
+        !self.available() && self.rediscover()
+    }
+
+    fn invalidate(&mut self) {
+        if !self.mock {
+            *self = Ddc::none();
+        }
+    }
+
     /// Set the external monitor's luminance (VCP 0x10) from a 0..=100 percent,
     /// scaling to the monitor's own max.
     pub fn set_brightness(&mut self, percent: u8) -> Result<(), String> {
@@ -145,8 +180,12 @@ impl Ddc {
         }
         let display = self.display.ok_or("no external DDC/CI monitor")?;
         let raw = (percent as u32 * self.bright_max / 100).min(self.bright_max);
-        ddcutil(&["-d", &display.to_string(), "setvcp", "10", &raw.to_string()])
-            .ok_or("ddcutil setvcp 10 failed (monitor busy or DDC/CI disabled in its OSD?)")?;
+        if ddcutil(&["-d", &display.to_string(), "setvcp", "10", &raw.to_string()]).is_none() {
+            self.invalidate();
+            return Err(
+                "ddcutil setvcp 10 failed (monitor busy or DDC/CI disabled in its OSD?)".into(),
+            );
+        }
         self.brightness = Some(percent);
         Ok(())
     }
@@ -160,14 +199,20 @@ impl Ddc {
             return Ok(());
         }
         let display = self.display.ok_or("no external DDC/CI monitor")?;
-        ddcutil(&[
+        if ddcutil(&[
             "-d",
             &display.to_string(),
             "setvcp",
             "14",
             &format!("0x{value:02x}"),
         ])
-        .ok_or("ddcutil setvcp failed (monitor busy or DDC/CI disabled in its OSD?)")?;
+        .is_none()
+        {
+            self.invalidate();
+            return Err(
+                "ddcutil setvcp failed (monitor busy or DDC/CI disabled in its OSD?)".into(),
+            );
+        }
         self.current = Some(value);
         Ok(())
     }

@@ -3,7 +3,7 @@
 // Keep every independently packaged Fang component on one release version.
 // Usage:
 //   node app/scripts/version.mjs check
-//   node app/scripts/version.mjs set 0.8.0
+//   node app/scripts/version.mjs set 0.8.1
 
 import fs from 'node:fs';
 import path from 'node:path';

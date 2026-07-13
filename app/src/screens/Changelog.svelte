@@ -2,6 +2,31 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.8.1',
+      date: '2026-07-13',
+      title: 'External-monitor recovery',
+      groups: [
+        {
+          kind: 'Added',
+          items: ['One-click DDC/CI rescan on the Lighting screen.']
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'While no monitor is available, fangd retries discovery every 15 seconds.',
+            'App/daemon API v2 adds the explicit DDC rescan command.'
+          ]
+        },
+        {
+          kind: 'Fixed',
+          items: [
+            'External monitors now recover after early boot or hot-plug without restarting fangd.',
+            'Failed brightness or color writes clear stale monitor state and trigger rediscovery.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.8.0',
       date: '2026-07-12',
       title: 'Fan curves & safety hardening',

@@ -1,7 +1,7 @@
 //! JSON-lines API between `fangd` and clients.
 //!
 //! Client sends one JSON object per line:
-//! `{"id":1,"api_version":1,"cmd":"get_status"}`.
+//! `{"id":1,"api_version":2,"cmd":"get_status"}`.
 //! Daemon answers `{"id": 1, "ok": true, "data": {...}}` and, after a
 //! `subscribe`, pushes `{"event": "telemetry", "data": {...}}` lines.
 
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// Socket API compatibility version. App and daemon may have different patch
 /// versions, but state-changing commands are allowed only when this matches.
-pub const API_VERSION: u16 = 1;
+pub const API_VERSION: u16 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -178,6 +178,8 @@ pub enum Command {
     SetMonitorBrightness {
         value: u8,
     },
+    /// Re-run external-monitor DDC/CI discovery immediately.
+    RescanDdc,
     /// Toggle automatic perf-profile switching on AC ↔ battery transitions,
     /// and set the profile + fan applied for each power source.
     SetAutoPower {
@@ -393,6 +395,13 @@ mod tests {
             Command::SetGpuMode { gpu_mode } => assert_eq!(gpu_mode, GpuMode::Dedicated),
             other => panic!("bad parse: {other:?}"),
         }
+    }
+
+    #[test]
+    fn ddc_rescan_wire_format() {
+        let r: Request = serde_json::from_str(r#"{"id":11,"cmd":"rescan_ddc"}"#).unwrap();
+        assert!(matches!(r.cmd, Command::RescanDdc));
+        assert!(r.cmd.is_mutating());
     }
 
     #[test]

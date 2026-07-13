@@ -4,6 +4,24 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.1] — 2026-07-13 — External-monitor recovery
+
+### Added
+- **One-click DDC/CI rescan.** The Lighting screen can immediately search again
+  for a connected external monitor without restarting `fangd`.
+
+### Changed
+- While no DDC/CI monitor is available, the daemon retries discovery every 15
+  seconds. It does no periodic helper work after a monitor has been found.
+- The app/daemon socket API is now version 2, adding the explicit DDC rescan
+  command. The 0.8.1 desktop package requires `fangd` 0.8.1 or newer.
+
+### Fixed
+- DDC/CI discovery no longer caches an early-boot failure until the daemon is
+  restarted, so monitors connected after startup recover automatically.
+- Failed monitor brightness or color writes now invalidate stale monitor state
+  and allow automatic rediscovery to begin.
+
 ## [0.8.0] — 2026-07-12 — Fan curves & safety hardening
 
 ### Added
@@ -172,6 +190,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.8.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.1
 [0.8.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.0
 [0.7.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.7.0
 [0.6.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.6.0

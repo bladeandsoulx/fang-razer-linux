@@ -135,6 +135,15 @@ export async function setMonitorBrightness(value) {
   }
 }
 
+/** Immediately retry external-monitor DDC/CI discovery. */
+export async function rescanDdc() {
+  if (invoke) {
+    status.set(await invoke('rescan_ddc'));
+  } else {
+    sim.rescanDdc();
+  }
+}
+
 /** AC/battery automation: enable + the profile and fan for each source. */
 export async function setAutoPower(enabled, acProfile, batteryProfile, acFan, batteryFan) {
   if (invoke) {
@@ -160,7 +169,7 @@ const sim = {
     device_present: true,
     verified: true,
     mock: true,
-    api_version: 1,
+    api_version: 2,
     perf_mode: 'balanced',
     cpu_boost: 'medium',
     gpu_boost: 'medium',
@@ -192,7 +201,7 @@ const sim = {
     battery_fan: { mode: 'auto' },
     gpu_mode: 'hybrid',
     gpu_mode_pending: false,
-    daemon_version: '0.8.0-sim'
+    daemon_version: '0.8.1-sim'
   },
   displayInfo: {
     supported: true,
@@ -378,6 +387,10 @@ const sim = {
     this.push();
   },
 
+  rescanDdc() {
+    this.push();
+  },
+
   setAutoPower(enabled, acProfile, batteryProfile, acFan, batteryFan) {
     this.state.auto_power = enabled;
     this.state.ac_profile = acProfile;
@@ -401,9 +414,9 @@ const sim = {
 function initSim() {
   connected.set(true);
   versionInfo.set({
-    app_version: '0.8.0-sim',
-    app_api_version: 1,
-    daemon_api_version: 1,
+    app_version: '0.8.1-sim',
+    app_api_version: 2,
+    daemon_api_version: 2,
     compatible: true
   });
   uiSettings.set({ autostart: false, close_to_tray: true });

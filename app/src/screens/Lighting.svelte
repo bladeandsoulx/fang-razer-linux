@@ -4,7 +4,8 @@
     setLighting,
     setPanelBrightness,
     setColorPreset,
-    setMonitorBrightness
+    setMonitorBrightness,
+    rescanDdc
   } from '../lib/bridge.js';
 
   const EFFECTS = [
@@ -64,6 +65,8 @@
   let monSlider = null;
   let brightError = '';
   let colorError = '';
+  let rescanBusy = false;
+  let scanMessage = '';
 
   $: panelBrightness = panelSlider ?? $panel?.brightness ?? 80;
   $: monitorBrightness = monSlider ?? $status?.monitor_brightness ?? 75;
@@ -94,6 +97,22 @@
       await setColorPreset(value);
     } catch (err) {
       colorError = String(err);
+    }
+  }
+
+  async function scanMonitor() {
+    rescanBusy = true;
+    colorError = '';
+    scanMessage = '';
+    try {
+      await rescanDdc();
+      scanMessage = $status?.color_ddc
+        ? 'Monitor detected.'
+        : 'No compatible monitor found yet; automatic retry continues.';
+    } catch (err) {
+      colorError = String(err);
+    } finally {
+      rescanBusy = false;
     }
   }
 </script>
@@ -171,17 +190,28 @@
           </div>
         {/if}
 
-        <p class="hint">
-          Brightness and color presets on the external monitor, sent over DDC/CI.
-          The laptop panel can't be color-managed on Linux — no Synapse-style
-          gamut clamp exists.
-        </p>
+        <div class="monitor-note">
+          <p class="hint">
+            Brightness and color presets on the external monitor, sent over DDC/CI.
+            The laptop panel can't be color-managed on Linux — no Synapse-style
+            gamut clamp exists.
+          </p>
+          <button class="chip" disabled={rescanBusy} on:click={scanMonitor}>
+            {rescanBusy ? 'Scanning…' : 'Rescan'}
+          </button>
+        </div>
       {:else if $status}
-        <p class="hint">
-          No DDC/CI monitor detected. Connect an external monitor with DDC/CI
-          enabled in its on-screen menu to control its brightness and color here.
-        </p>
+        <div class="monitor-note">
+          <p class="hint">
+            No DDC/CI monitor detected yet. Fang retries automatically after boot
+            and hot-plug. Check that DDC/CI is enabled in the monitor's on-screen menu.
+          </p>
+          <button class="chip" disabled={rescanBusy} on:click={scanMonitor}>
+            {rescanBusy ? 'Scanning…' : 'Rescan now'}
+          </button>
+        </div>
       {/if}
+      {#if scanMessage}<p class="scan">{scanMessage}</p>{/if}
       {#if colorError}<p class="err">{colorError}</p>{/if}
     </div>
   </div>
@@ -333,6 +363,16 @@
     color: var(--ink-dim);
   }
 
+  .monitor-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .monitor-note .hint {
+    flex: 1;
+  }
+
   .presets {
     display: flex;
     flex-wrap: wrap;
@@ -353,6 +393,11 @@
     color: var(--ink);
   }
 
+  .chip:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
   .chip.on {
     background: rgba(68, 214, 44, 0.14);
     color: var(--green);
@@ -363,5 +408,10 @@
   .err {
     font-size: 11.5px;
     color: var(--red);
+  }
+
+  .scan {
+    font-size: 11.5px;
+    color: var(--green-soft);
   }
 </style>
