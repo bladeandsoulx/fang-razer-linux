@@ -28,6 +28,19 @@ Fang is focused on **Razer Blade laptops**, rather than claiming full Synapse
 parity across every Razer peripheral. It currently recognizes 48 Blade models
 from 2015–2025.
 
+## Screenshots
+
+![Fang live thermal dashboard for a Razer Blade laptop on Linux](docs/screenshots/dashboard.png)
+
+| Custom fan curves with thermal protection | Performance modes and power automation |
+|---|---|
+| ![Fang custom Razer Blade fan curve editor on Linux](docs/screenshots/fan-curve.png) | ![Fang Razer Blade performance modes on Linux](docs/screenshots/performance.png) |
+| Keyboard, logo and display lighting | GPU mode and refresh-rate controls |
+| ![Fang Razer Blade RGB and display controls on Linux](docs/screenshots/lighting.png) | ![Fang Razer Blade GPU switching and refresh-rate controls on Linux](docs/screenshots/gpu-display.png) |
+
+_Screenshots use Fang's built-in hardware simulator; the desktop UI is the
+same when connected to `fangd` on a supported Razer Blade._
+
 ## What Fang controls
 
 - 🎛 **Performance modes** — Silent / Balanced / Gaming, plus Custom
