@@ -4,6 +4,23 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] — 2026-07-15 — In-app update checker
+
+### Added
+- **Check for updates button.** Settings now compares the installed Fang
+  version with the latest stable release published on GitHub.
+- When a newer version is available, Fang links directly to its release page
+  so the matching app and daemon packages can be downloaded together.
+
+## [0.8.2] — 2026-07-13 — Single-instance desktop app
+
+### Added
+- **Single-instance protection.** Launching Fang while it is already running
+  now restores and focuses the existing window instead of opening a second app
+  instance.
+- A native information dialog clearly explains that Fang is already open when
+  a second launch is attempted.
+
 ## [0.8.1] — 2026-07-13 — External-monitor recovery
 
 ### Added
@@ -190,6 +207,8 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.9.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.0
+[0.8.2]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.2
 [0.8.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.1
 [0.8.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.0
 [0.7.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.7.0

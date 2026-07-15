@@ -3,8 +3,11 @@
   import Icon from '../lib/components/Icon.svelte';
   import { status, uiSettings, connected, versionInfo } from '../lib/stores.js';
   import { saveUiSettings, setBho, openExternal, inTauri } from '../lib/bridge.js';
+  import { checkForUpdate } from '../lib/updater.js';
 
   let slider = null; // local slider position before release
+  let updateStatus = 'idle';
+  let updateInfo = null;
 
   $: bhoOn = $status?.bho_enabled ?? false;
   $: threshold = slider ?? $status?.bho_threshold ?? 80;
@@ -21,6 +24,28 @@
   function commitThreshold(e) {
     slider = null;
     setBho(true, +e.target.value);
+  }
+
+  async function checkUpdates() {
+    if (!$versionInfo.app_version) return;
+
+    updateStatus = 'checking';
+    updateInfo = null;
+    try {
+      updateInfo = await checkForUpdate($versionInfo.app_version);
+      updateStatus = updateInfo.available ? 'available' : 'current';
+    } catch (error) {
+      console.error('update check', error);
+      updateStatus = 'error';
+    }
+  }
+
+  function updateAction() {
+    if (updateStatus === 'available' && updateInfo) {
+      openExternal(updateInfo.releaseUrl);
+    } else {
+      checkUpdates();
+    }
   }
 </script>
 
@@ -101,6 +126,69 @@
       </p>
     </div>
   {/if}
+
+  <div class="card rise pad updater" style="animation-delay:105ms">
+    <div class="update-head">
+      <span class="card-label">Updates</span>
+      <span class="installed mono">v{$versionInfo.app_version || '--'} installed</span>
+    </div>
+
+    <div class="update-state" aria-live="polite">
+      <span
+        class="update-icon"
+        class:success={updateStatus === 'current'}
+        class:available={updateStatus === 'available'}
+        class:error={updateStatus === 'error'}
+        class:spinning={updateStatus === 'checking'}
+      >
+        <Icon
+          name={updateStatus === 'current'
+            ? 'check'
+            : updateStatus === 'available'
+              ? 'download'
+              : updateStatus === 'error'
+                ? 'warn'
+                : 'refresh'}
+          size={20}
+        />
+      </span>
+      <div>
+        {#if updateStatus === 'checking'}
+          <strong>Checking GitHub…</strong>
+          <p>Looking for the latest published Fang release.</p>
+        {:else if updateStatus === 'current'}
+          <strong>Fang is up to date</strong>
+          <p>v{updateInfo.latestVersion} is the latest stable release.</p>
+        {:else if updateStatus === 'available'}
+          <strong>Fang v{updateInfo.latestVersion} is available</strong>
+          <p>Open the release to download the matching app and daemon packages.</p>
+        {:else if updateStatus === 'error'}
+          <strong>Couldn't check for updates</strong>
+          <p>Check your internet connection, then try again.</p>
+        {:else}
+          <strong>Check for a new version</strong>
+          <p>Compare this installation with the latest stable release on GitHub.</p>
+        {/if}
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="update-button"
+      class:available={updateStatus === 'available'}
+      disabled={updateStatus === 'checking' || !$versionInfo.app_version}
+      on:click={updateAction}
+    >
+      <Icon name={updateStatus === 'available' ? 'download' : 'refresh'} size={14} />
+      {updateStatus === 'checking'
+        ? 'Checking…'
+        : updateStatus === 'available'
+          ? `Open v${updateInfo.latestVersion} release`
+          : updateStatus === 'idle'
+            ? 'Check for updates'
+            : 'Check again'}
+    </button>
+  </div>
 
   <div class="card rise pad about" style="animation-delay:120ms">
     <span class="card-label">About</span>
@@ -233,6 +321,117 @@
     line-height: 1.5;
     color: var(--ink-dim);
     margin-top: 12px;
+  }
+
+  .updater {
+    align-self: stretch;
+    gap: 16px;
+  }
+
+  .update-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .installed {
+    color: var(--ink-faint);
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .update-state {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+  }
+
+  .update-state strong {
+    display: block;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .update-state p {
+    margin-top: 4px;
+    color: var(--ink-dim);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .update-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border: 1px solid var(--panel-edge-hi);
+    border-radius: 50%;
+    color: var(--ink-dim);
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .update-icon.success,
+  .update-icon.available {
+    color: var(--green);
+    border-color: rgba(68, 214, 44, 0.35);
+    background: rgba(68, 214, 44, 0.08);
+    box-shadow: 0 0 14px rgba(68, 214, 44, 0.08);
+  }
+
+  .update-icon.error {
+    color: var(--red);
+    border-color: rgba(255, 92, 92, 0.35);
+    background: rgba(255, 92, 92, 0.08);
+  }
+
+  .update-icon.spinning :global(svg) {
+    animation: spin 0.9s linear infinite;
+  }
+
+  .update-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: fit-content;
+    margin-top: auto;
+    padding: 9px 13px;
+    border: 1px solid var(--panel-edge-hi);
+    border-radius: 7px;
+    color: var(--ink-dim);
+    background: #15191c;
+    font-family: var(--font-data);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+
+  .update-button:hover:not(:disabled) {
+    color: var(--ink);
+    border-color: var(--ink-faint);
+    background: #1a1f22;
+  }
+
+  .update-button.available {
+    color: var(--green);
+    border-color: rgba(68, 214, 44, 0.4);
+    background: rgba(68, 214, 44, 0.08);
+  }
+
+  .update-button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .about {

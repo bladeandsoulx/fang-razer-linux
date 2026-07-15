@@ -2,6 +2,34 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.9.0',
+      date: '2026-07-15',
+      title: 'In-app update checker',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'A new Check for updates button in Settings compares the installed version with the latest stable GitHub release.',
+            'When an update is available, Fang opens the release with matching app and daemon packages.'
+          ]
+        }
+      ]
+    },
+    {
+      version: '0.8.2',
+      date: '2026-07-13',
+      title: 'Single-instance desktop app',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'Opening Fang again restores and focuses the existing window instead of starting a duplicate.',
+            'A native message explains that Fang is already running.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.8.1',
       date: '2026-07-13',
       title: 'External-monitor recovery',

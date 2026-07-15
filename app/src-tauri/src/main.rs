@@ -13,6 +13,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, State, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -216,6 +217,16 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn notify_already_running(app: &AppHandle) {
+    show_main_window(app);
+    app.dialog()
+        .message("Fang is already running. The existing window has been brought to the front.")
+        .title("Fang is already open")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::Ok)
+        .show(|_| {});
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Fang", true, None::<&str>)?;
     let silent = MenuItem::with_id(app, "mode:silent", "Silent", true, None::<&str>)?;
@@ -278,6 +289,12 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     tauri::Builder::default()
+        // This must remain the first plugin so a second process exits before it
+        // can initialize another Fang window, tray, or daemon client.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            notify_already_running(app);
+        }))
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
