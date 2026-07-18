@@ -111,7 +111,10 @@ family is compatible but the derivative is not release-tested directly.
 
 The installer safely parses only the needed keys from `/etc/os-release`; it
 must not `source`, `eval`, or otherwise execute the file. Quoted values are
-decoded as data. The relevant fields are:
+decoded as data using the `os-release` quoting rules, without command or
+parameter expansion. Duplicate relevant keys, malformed quoting, or values
+outside the field's expected character set are rejected rather than resolved
+by last-one-wins behavior. The relevant fields are:
 
 - `ID`
 - `ID_LIKE`
@@ -210,7 +213,8 @@ This layout gives the streaming command a fail-closed truncation property:
 
 `main` enables strict error behavior, sets a private umask, registers cleanup,
 and then dispatches the workflow. Temporary files are removed on success,
-failure, interrupt, and termination.
+failure, and catchable `INT`, `HUP`, and `TERM` signals. The design does not
+claim cleanup after `SIGKILL` or host failure.
 
 The script requires Bash and does not claim POSIX `sh` compatibility.
 
@@ -260,7 +264,8 @@ attached release assets are exactly:
 6. `fangd-0.9.4-1.x86_64.rpm`
 
 GitHub-generated source archives are not manually attached assets and are not
-part of the six-entry API inventory.
+part of the six-entry API inventory. GitHub's automatically generated release
+attestation is likewise not a seventh manually attached asset.
 
 The general filename formulas are:
 
@@ -390,6 +395,11 @@ The installer queries `fang` and `fangd` independently and classifies each as:
 - older than the selected release;
 - equal to the selected release; or
 - newer than the selected release.
+
+For DEB, only `install ok installed` counts as installed; residual
+configuration state counts as absent. If the RPM database returns more than
+one installed EVR for either package name, the state is ambiguous and the
+installer refuses before elevation rather than choosing one.
 
 DEB comparisons use `dpkg --compare-versions` on the complete Debian package
 version. RPM comparisons use RPM's own EVR semantics, including Epoch,
@@ -549,12 +559,16 @@ The publication job:
    count, size, and available SHA-256 digest metadata with the local staged
    files.
 9. Publishes the draft in one transition only after every check succeeds.
+   Publication explicitly marks this non-prerelease as GitHub's latest
+   release.
 10. Reads the published release and asserts:
     - `draft` is false;
     - `prerelease` is false;
     - `immutable` is true;
     - the tag is the expected tag; and
     - the exact six assets remain present.
+11. Resolves GitHub's latest-release endpoint and confirms that it identifies
+    the new tag and its `install.sh`.
 
 If a workflow fails after creating the draft but before publication, it
 leaves the draft unpublished and fails closed. A maintainer must inspect and
@@ -589,7 +603,8 @@ Required fixture cases include:
 - Zorin, Mint, and Pop!_OS supported-base derivative selection with warning;
 - unsupported derivative bases, conflicting markers, future direct bases,
   and unknown distributions;
-- every non-x86_64 architecture;
+- representative non-x86_64 architectures plus rejection of arbitrary values
+  other than exact `x86_64`;
 - exact tag URLs and exact selected asset names;
 - download failure and partial-file cleanup;
 - missing, duplicate, malformed, extra, and incorrect checksum entries;
@@ -645,6 +660,8 @@ Each test verifies:
 - the service unit is present and passes static verification;
 - `fangd --version` and the existing mock daemon smoke test succeed;
 - the desktop binary has no unresolved shared libraries;
+- the installed desktop app stays alive for a bounded startup window under
+  `dbus-run-session` and Xvfb, then is terminated by the test;
 - package verification reports no missing packaged files; and
 - both packages remove cleanly.
 
