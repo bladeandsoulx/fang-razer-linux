@@ -45,6 +45,32 @@ function replaceCargoPackageVersion(text, name, version) {
   );
 }
 
+function rpmField(text, field) {
+  return capture('RPM ' + field, text, new RegExp('^' + field + ':\\s*(\\S+)\\s*$', 'm'));
+}
+
+function rpmMacro(text, name) {
+  return capture('RPM macro ' + name, text, new RegExp('^%global\\s+' + name + '\\s+(\\S+)\\s*$', 'm'));
+}
+
+function replaceRpmField(text, field, value) {
+  return replaceRequired(
+    'RPM ' + field,
+    text,
+    new RegExp('^(' + field + ':\\s*)\\S+(\\s*)$', 'm'),
+    '$1' + value + '$2'
+  );
+}
+
+function replaceRpmMacro(text, name, value) {
+  return replaceRequired(
+    'RPM macro ' + name,
+    text,
+    new RegExp('^(%global\\s+' + name + '\\s+)\\S+(\\s*)$', 'm'),
+    '$1' + value + '$2'
+  );
+}
+
 function currentVersions() {
   const rootCargo = read('Cargo.toml');
   const rootLock = read('Cargo.lock');
@@ -54,6 +80,8 @@ function currentVersions() {
   const packageLock = JSON.parse(read('app/package-lock.json'));
   const tauri = JSON.parse(read('app/src-tauri/tauri.conf.json'));
   const changelog = read('CHANGELOG.md');
+  const fangRpm = read('packaging/rpm/fang.spec');
+  const fangdRpm = read('packaging/rpm/fangd.spec');
   return [
     ['workspace Cargo.toml', capture('workspace version', rootCargo, /\[workspace\.package\][\s\S]*?\nversion = "([^"]+)"/)],
     ['fang-protocol Cargo.lock', cargoPackageVersion(rootLock, 'fang-protocol')],
@@ -65,6 +93,8 @@ function currentVersions() {
     ['fang Tauri Cargo.lock', cargoPackageVersion(appLock, 'fang')],
     ['fang-protocol Tauri Cargo.lock', cargoPackageVersion(appLock, 'fang-protocol')],
     ['tauri.conf.json', tauri.version],
+    ['fang RPM spec', rpmField(fangRpm, 'Version')],
+    ['fangd RPM spec', rpmField(fangdRpm, 'Version')],
     ['CHANGELOG.md', capture('latest changelog release', changelog, /^## \[(\d+\.\d+\.\d+)\]/m)]
   ];
 }
@@ -84,6 +114,14 @@ function check() {
   const depends = tauri.bundle.linux.deb.depends ?? [];
   const [major, minor] = expected.split('.').map(Number);
   const upper = major + '.' + (minor + 1) + '.0';
+  const fangRpm = read('packaging/rpm/fang.spec');
+  if (
+    !/^Requires:\s*fangd >= %\{version\}\s*$/m.test(fangRpm) ||
+    !/^Requires:\s*fangd < %\{fangd_upper\}\s*$/m.test(fangRpm) ||
+    rpmMacro(fangRpm, 'fangd_upper') !== upper
+  ) {
+    throw new Error('Fang RPM must depend on the matching fangd release line');
+  }
   if (
     !depends.includes('fangd (>= ' + expected + ')') ||
     !depends.includes('fangd (<< ' + upper + ')')
@@ -141,6 +179,14 @@ function setVersion(version) {
     'fangd (<< ' + major + '.' + (minor + 1) + '.0)'
   ];
   write('app/src-tauri/tauri.conf.json', JSON.stringify(tauri, null, 2) + '\n');
+
+  for (const name of ['packaging/rpm/fang.spec', 'packaging/rpm/fangd.spec']) {
+    text = replaceRpmField(read(name), 'Version', version);
+    if (name.endsWith('/fang.spec')) {
+      text = replaceRpmMacro(text, 'fangd_upper', major + '.' + (minor + 1) + '.0');
+    }
+    write(name, text);
+  }
 
   console.log('Updated manifests and lockfiles to ' + version + '.');
   console.log('Update CHANGELOG.md, then run this script with check.');
