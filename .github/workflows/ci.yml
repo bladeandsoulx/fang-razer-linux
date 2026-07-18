@@ -51,3 +51,56 @@ jobs:
         working-directory: app/src-tauri
       - run: cargo test --bin fang
         working-directory: app/src-tauri
+
+  rpm-build:
+    name: build RPMs (Fedora 43)
+    runs-on: ubuntu-latest
+    container: fedora:43
+    steps:
+      - run: >
+          dnf install -y
+          git curl tar gzip gcc gcc-c++ make pkgconf-pkg-config systemd-devel
+          webkit2gtk4.1-devel gtk3-devel librsvg2-devel
+          libayatana-appindicator-gtk3-devel openssl-devel
+          rpm-build desktop-file-utils findutils
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            app/src-tauri
+      - run: packaging/rpm/build.sh target/rpm-dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fang-rpms
+          path: target/rpm-dist/*.rpm
+          if-no-files-found: error
+
+  rpm-test:
+    name: test RPMs (${{ matrix.fedora }})
+    needs: rpm-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: [43, 44]
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - run: >
+          dnf install -y
+          git tar gzip rpm-build systemd systemd-rpm-macros desktop-file-utils
+          python3 dbus-daemon xorg-x11-server-Xvfb xorg-x11-xauth
+          libayatana-appindicator-gtk3 findutils procps-ng
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-rpms
+          path: target/rpm-dist
+      - run: packaging/rpm/verify.sh target/rpm-dist
