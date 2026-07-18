@@ -38,10 +38,21 @@ function run(dir, ...args) {
   });
 }
 
+function mutateFixture(text, pattern, replacement) {
+  const mutated = text.replace(pattern, replacement);
+  assert.notEqual(mutated, text, 'fixture mutation must change the source text');
+  return mutated;
+}
+
 test('check rejects an incorrect RPM upper bound', () => {
   const dir = fixture();
   const spec = path.join(dir, 'packaging/rpm/fang.spec');
-  fs.writeFileSync(spec, fs.readFileSync(spec, 'utf8').replace('fangd_upper 0.10.0', 'fangd_upper 0.11.0'));
+  const malformed = mutateFixture(
+    fs.readFileSync(spec, 'utf8'),
+    /^(%global[^\S\r\n]+fangd_upper[^\S\r\n]+)\S+([^\S\r\n]*)$/m,
+    (_match, prefix, suffix) => prefix + '999.999.999' + suffix
+  );
+  fs.writeFileSync(spec, malformed);
   const result = run(dir, 'check');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /RPM.*release line|fangd_upper/i);
@@ -51,7 +62,12 @@ test('check rejects an incorrect RPM upper bound', () => {
 test('check rejects a multiline RPM Version field', () => {
   const dir = fixture();
   const spec = path.join(dir, 'packaging/rpm/fangd.spec');
-  fs.writeFileSync(spec, fs.readFileSync(spec, 'utf8').replace('Version: 0.9.2', 'Version:\n0.9.2'));
+  const malformed = mutateFixture(
+    fs.readFileSync(spec, 'utf8'),
+    /^(Version:)[^\S\r\n]*(\S+)[^\S\r\n]*$/m,
+    '$1\n$2'
+  );
+  fs.writeFileSync(spec, malformed);
   const result = run(dir, 'check');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /could not read RPM Version/);
@@ -61,10 +77,12 @@ test('check rejects a multiline RPM Version field', () => {
 test('check rejects a multiline RPM macro value', () => {
   const dir = fixture();
   const spec = path.join(dir, 'packaging/rpm/fang.spec');
-  fs.writeFileSync(
-    spec,
-    fs.readFileSync(spec, 'utf8').replace('%global fangd_upper 0.10.0', '%global fangd_upper\n0.10.0')
+  const malformed = mutateFixture(
+    fs.readFileSync(spec, 'utf8'),
+    /^(%global[^\S\r\n]+fangd_upper)[^\S\r\n]+(\S+)[^\S\r\n]*$/m,
+    '$1\n$2'
   );
+  fs.writeFileSync(spec, malformed);
   const result = run(dir, 'check');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /could not read RPM macro fangd_upper/);
@@ -88,24 +106,31 @@ test('set updates both RPM versions and the next-minor upper bound', () => {
 test('set rejects a multiline RPM Version field', () => {
   const dir = fixture();
   const spec = path.join(dir, 'packaging/rpm/fangd.spec');
-  fs.writeFileSync(spec, fs.readFileSync(spec, 'utf8').replace('Version: 0.9.2', 'Version:\n0.9.2'));
-  const result = run(dir, 'set', '0.9.3');
+  const malformed = mutateFixture(
+    fs.readFileSync(spec, 'utf8'),
+    /^(Version:)[^\S\r\n]*(\S+)[^\S\r\n]*$/m,
+    '$1\n$2'
+  );
+  fs.writeFileSync(spec, malformed);
+  const result = run(dir, 'set', '9.8.7');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /could not update RPM Version/);
-  assert.match(fs.readFileSync(spec, 'utf8'), /^Version:\n0\.9\.2$/m);
+  assert.equal(fs.readFileSync(spec, 'utf8'), malformed);
   fs.rmSync(dir, { recursive: true });
 });
 
 test('set rejects a multiline RPM macro value', () => {
   const dir = fixture();
   const spec = path.join(dir, 'packaging/rpm/fang.spec');
-  fs.writeFileSync(
-    spec,
-    fs.readFileSync(spec, 'utf8').replace('%global fangd_upper 0.10.0', '%global fangd_upper\n0.10.0')
+  const malformed = mutateFixture(
+    fs.readFileSync(spec, 'utf8'),
+    /^(%global[^\S\r\n]+fangd_upper)[^\S\r\n]+(\S+)[^\S\r\n]*$/m,
+    '$1\n$2'
   );
-  const result = run(dir, 'set', '0.9.3');
+  fs.writeFileSync(spec, malformed);
+  const result = run(dir, 'set', '9.8.7');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /could not update RPM macro fangd_upper/);
-  assert.match(fs.readFileSync(spec, 'utf8'), /^%global fangd_upper\n0\.10\.0$/m);
+  assert.equal(fs.readFileSync(spec, 'utf8'), malformed);
   fs.rmSync(dir, { recursive: true });
 });
