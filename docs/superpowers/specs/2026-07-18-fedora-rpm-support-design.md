@@ -1,13 +1,13 @@
 # Fedora RPM support for Fang
 
-**Date:** 2026-07-18  
+**Date:** 2026-07-18
 **Status:** Draft — approved in conversation; awaiting written-spec review
 
 ## Goal
 
 Ship installable, release-quality RPM packages for Fang on Fedora without
-requiring a Fedora installation on the maintainer's computer. Every supported
-GitHub release will contain two x86_64 RPMs:
+requiring a Fedora installation on the maintainer's computer. Every GitHub
+release created by the updated workflow will contain two x86_64 RPMs:
 
 1. `fangd`, the privileged daemon and its systemd integration.
 2. `fang`, the Tauri desktop application.
@@ -178,9 +178,9 @@ Two matrix jobs download the build artifact and run in clean `fedora:43` and
 3. **Daemon smoke tests**
    - `/usr/bin/fangd --version` prints the package version and exits zero;
    - the installed unit passes `systemd-analyze verify`; and
-   - the installed daemon starts in mock mode on a loopback endpoint and
-     completes the existing request/response integration scenario without
-     accessing Razer hardware.
+   - the installed daemon starts in mock mode on a loopback endpoint, answers
+     a public JSON-lines `get_status` request with `mock: true`, and exits
+     cleanly when the test stops it, without accessing Razer hardware.
 
 4. **Desktop smoke tests**
    - `ldd` reports no unresolved shared libraries for `/usr/bin/fang`; and
