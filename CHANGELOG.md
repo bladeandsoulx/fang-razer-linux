@@ -4,6 +4,19 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.3] — 2026-07-18 — Fedora RPM support
+
+### Added
+
+- Native x86_64 RPM packages for Fedora 43 and Fedora 44.
+- Fedora 43/44 package build, install, launch, dependency, and removal checks.
+- `fangd --version` for package and diagnostic verification.
+
+### Changed
+
+- GitHub releases are created only after both DEBs and both RPMs pass their
+  release gates.
+
 ## [0.9.2] — 2026-07-17 — Support Fang
 
 ### Added
@@ -290,6 +303,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.9.3]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.3
 [0.9.2]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.2
 [0.9.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.1
 [0.9.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.0

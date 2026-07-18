@@ -1,7 +1,7 @@
 %global debug_package %{nil}
 
 Name: fangd
-Version: 0.9.2
+Version: 0.9.3
 Release: 1
 Summary: Privileged hardware-control daemon for Fang
 License: GPL-2.0-only
