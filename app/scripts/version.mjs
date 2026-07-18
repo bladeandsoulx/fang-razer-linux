@@ -46,18 +46,26 @@ function replaceCargoPackageVersion(text, name, version) {
 }
 
 function rpmField(text, field) {
-  return capture('RPM ' + field, text, new RegExp('^' + field + ':\\s*(\\S+)\\s*$', 'm'));
+  return capture(
+    'RPM ' + field,
+    text,
+    new RegExp('^' + field + ':[^\\S\\r\\n]*(\\S+)[^\\S\\r\\n]*$', 'm')
+  );
 }
 
 function rpmMacro(text, name) {
-  return capture('RPM macro ' + name, text, new RegExp('^%global\\s+' + name + '\\s+(\\S+)\\s*$', 'm'));
+  return capture(
+    'RPM macro ' + name,
+    text,
+    new RegExp('^%global[^\\S\\r\\n]+' + name + '[^\\S\\r\\n]+(\\S+)[^\\S\\r\\n]*$', 'm')
+  );
 }
 
 function replaceRpmField(text, field, value) {
   return replaceRequired(
     'RPM ' + field,
     text,
-    new RegExp('^(' + field + ':\\s*)\\S+(\\s*)$', 'm'),
+    new RegExp('^(' + field + ':[^\\S\\r\\n]*)\\S+([^\\S\\r\\n]*)$', 'm'),
     '$1' + value + '$2'
   );
 }
@@ -66,7 +74,7 @@ function replaceRpmMacro(text, name, value) {
   return replaceRequired(
     'RPM macro ' + name,
     text,
-    new RegExp('^(%global\\s+' + name + '\\s+)\\S+(\\s*)$', 'm'),
+    new RegExp('^(%global[^\\S\\r\\n]+' + name + '[^\\S\\r\\n]+)\\S+([^\\S\\r\\n]*)$', 'm'),
     '$1' + value + '$2'
   );
 }
