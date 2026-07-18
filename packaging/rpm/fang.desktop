@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fang
+GenericName=Razer Blade Control Center
+Comment=Control performance, fans, lighting, power, and displays
+Exec=fang
+Icon=fang
+Terminal=false
+Categories=System;Utility;
+StartupNotify=true
