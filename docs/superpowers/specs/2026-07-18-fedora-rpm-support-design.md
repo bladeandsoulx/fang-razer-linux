@@ -90,7 +90,9 @@ sudo systemctl enable --now fangd
 The daemon RPM is versioned from the workspace version. Its RPM `Release`
 starts at `1`, so a package-only correction can increment the release without
 changing Fang's application version. Its architecture must be `x86_64`, and
-automatic ELF dependency generation remains enabled.
+automatic ELF dependency generation remains enabled. The spec uses
+`License: GPL-2.0-only` in its metadata in addition to shipping `LICENSE`
+through `%license`.
 
 `fangd --version` prints `fangd <version>` and exits successfully without
 opening hardware, creating state, or binding a socket. Unknown options continue
@@ -114,14 +116,21 @@ The custom spec installs:
   package payload under `%{_licensedir}/fang/`.
 
 The checked-in desktop entry is validated with `desktop-file-validate` during
-the RPM build and install tests.
+the RPM build and install tests, with `desktop-file-utils` declared as a build
+requirement.
 
 `fang.spec` declares the strict daemon dependency as native RPM requirements
-for the same compatible release line:
+for the same compatible release line. At version 0.9.2, the relevant spec
+fields are:
 
-```text
+```spec
+Version: 0.9.2
+Release: 1
+License: GPL-2.0-only
+%global fangd_upper 0.10.0
+
 Requires: fangd >= %{version}
-Requires: fangd < <next minor version>
+Requires: fangd < %{fangd_upper}
 ```
 
 For example, desktop version `0.9.2` accepts `fangd >= 0.9.2` and
@@ -144,11 +153,12 @@ required for both the strict dependency range and the `%license` file.
 ### Version synchronization
 
 Extend `app/scripts/version.mjs` so `check` verifies the `Version` field in both
-RPM specs and the lower and upper daemon constraints in `fang.spec`.
-`set VERSION` updates both specs together with the existing Cargo, npm, Tauri,
-and DEB version sources; `check` continues to include the changelog. The
-next-minor upper bound is calculated once from the application version. A
-version bump must fail CI if any version or package dependency is out of sync.
+RPM specs, the macro-based lower constraint, and the `fangd_upper` value in
+`fang.spec`. `set VERSION` updates both specs and `fangd_upper` together with
+the existing Cargo, npm, Tauri, and DEB version sources; `check` continues to
+include the changelog. The next-minor upper bound is calculated once from the
+application version. A version bump must fail CI if any version or package
+dependency is out of sync.
 
 ## CI design
 
