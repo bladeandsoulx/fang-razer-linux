@@ -116,6 +116,30 @@ sudo usermod -aG fang "$USER"   # then log out and back in
 Without the group step the app just shows "daemon offline" — the socket is
 `root:fang` and only the daemon runs as root.
 
+## Install (Fedora 43 / 44)
+
+GitHub releases include x86_64 RPMs for the daemon and desktop app. Download
+both files from the same release, then install and activate them:
+
+```sh
+sudo dnf install ./fangd-*.rpm ./fang-*.rpm
+sudo systemctl enable --now fangd
+sudo usermod -aG fang "$USER"
+```
+
+Log out and back in once after `usermod`; the desktop app needs the new group
+membership to access `/run/fangd.sock`. Diagnose the daemon with
+`systemctl status fangd` and `journalctl -u fangd`. Remove both packages with:
+
+```sh
+sudo dnf remove fang fangd
+```
+
+These first RPMs are unsigned direct downloads rather than a configured DNF
+repository. Fedora package installation is tested in Fedora 43/44 containers;
+physical Razer hardware and SELinux-enforcing behavior depend on community
+validation through `HARDWARE_TESTING.md`.
+
 ## Supported hardware
 
 Fang recognizes **48 Blade models** (2015–2025) with per-model fan limits and

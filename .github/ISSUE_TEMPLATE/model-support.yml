@@ -24,6 +24,19 @@ body:
       placeholder: "Bus 003 Device 004: ID 1532:02a0 Razer USA, Ltd"
     validations:
       required: true
+  - type: input
+    id: system
+    attributes:
+      label: Distribution + desktop session
+      placeholder: "Fedora 44 · GNOME Wayland"
+    validations:
+      required: true
+  - type: input
+    id: selinux
+    attributes:
+      label: SELinux status and denials
+      description: "Fedora: include `getenforce` and any relevant `ausearch -m AVC -ts recent` lines"
+      placeholder: "Enforcing · no Fang-related AVC denials"
   - type: textarea
     id: journal
     attributes:

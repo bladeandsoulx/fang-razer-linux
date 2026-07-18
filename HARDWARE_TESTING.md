@@ -1,4 +1,4 @@
-# First run on real hardware (Razer Blade, Ubuntu)
+# First run on real hardware (Razer Blade, Ubuntu or Fedora)
 
 Fang's EC packet layer is byte-verified against razer-laptop-control, but
 this checklist is for the first boot on a physical Blade. Work through it in
@@ -9,6 +9,9 @@ order; each step has a rollback.
 ```sh
 lsusb -d 1532:            # note the product id (e.g. 1532:02a0)
 sensors | head -30        # confirm coretemp is visible
+cat /etc/os-release             # record distribution and version
+echo "${XDG_SESSION_TYPE:-?}"   # record Wayland or X11
+getenforce 2>/dev/null || true  # Fedora: record enforcing/permissive/disabled
 ```
 
 Fang recognizes the PIDs in `crates/fang-protocol/src/models.rs`. An unknown
@@ -29,8 +32,21 @@ warning. Remove the override after adding a verified model profile.
 
 ## 1. Install and check the daemon
 
+Use the package path for the distribution:
+
 ```sh
+# Ubuntu/Debian source build:
 sudo ./packaging/install.sh
+
+# Fedora 43/44 prebuilt release packages:
+sudo dnf install ./fangd-*.rpm ./fang-*.rpm
+sudo systemctl enable --now fangd
+sudo usermod -aG fang "$USER"  # log out and back in once
+```
+
+Then inspect the daemon:
+
+```sh
 journalctl -u fangd -b --no-pager | tail -20
 ```
 
@@ -138,6 +154,7 @@ Disable to resume normal charging to 100%.
 
 ```sh
 sudo systemctl disable --now fangd     # stop controlling the EC
+sudo dnf remove fang fangd       # Fedora RPM installs
 ```
 
 Stopping now restores EC automatic fan control; reboot still returns all EC
@@ -147,6 +164,8 @@ settings to firmware defaults. To remove everything:
 
 ## Reporting results
 
-Open an issue with: model + year, `lsusb -d 1532:` output, `journalctl -u
-fangd -b` snippet, and which steps passed/failed. That's enough to add a
-verified profile for your machine.
+Open an issue with: model + year, distribution + version, desktop + Wayland/X11
+session, `lsusb -d 1532:` output, `journalctl -u fangd -b` snippet, and which
+steps passed or failed. On Fedora, also include `getenforce` and any Fang-related
+`ausearch -m AVC -ts recent` denials. This is enough to distinguish packaging,
+SELinux, desktop-session, and hardware-profile failures.
