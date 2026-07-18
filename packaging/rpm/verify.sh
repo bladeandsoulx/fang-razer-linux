@@ -93,14 +93,17 @@ if ldd /usr/bin/fang | grep -F 'not found'; then
 fi
 
 set +e
-dbus-run-session -- timeout 8s xvfb-run -a /usr/bin/fang >"$TMP/fang.out" 2>"$TMP/fang.err"
+dbus-run-session -- timeout --kill-after=2s 8s xvfb-run -a /usr/bin/fang >"$TMP/fang.out" 2>"$TMP/fang.err"
 desktop_status=$?
 set -e
-if [[ "$desktop_status" -ne 124 ]]; then
-  cat "$TMP/fang.out" "$TMP/fang.err" >&2
-  echo "desktop exited before smoke timeout: $desktop_status" >&2
-  exit 1
-fi
+case "$desktop_status" in
+  124|137) ;;
+  *)
+    cat "$TMP/fang.out" "$TMP/fang.err" >&2
+    echo "desktop exited before smoke timeout: $desktop_status" >&2
+    exit 1
+    ;;
+esac
 
 while IFS= read -r path; do
   if [[ -f "$path" || -L "$path" ]]; then

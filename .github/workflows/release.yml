@@ -5,7 +5,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   debs:
@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -60,6 +62,8 @@ jobs:
           libayatana-appindicator-gtk3-devel openssl-devel
           rpm-build desktop-file-utils findutils
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -95,6 +99,8 @@ jobs:
           python3 dbus-daemon xorg-x11-server-Xvfb xorg-x11-xauth
           libayatana-appindicator-gtk3 findutils procps-ng
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: fang-rpms
@@ -105,8 +111,12 @@ jobs:
     name: create four-package draft release
     needs: [debs, rpm-test]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: fang-debs
@@ -115,16 +125,52 @@ jobs:
         with:
           name: fang-rpms
           path: dist/rpm
+      - name: Verify release identity
+        run: |
+          node app/scripts/version.mjs check
+          version="$(node -p "require('./app/package.json').version")"
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            printf 'release tag %s does not match manifest version v%s\n' "$GITHUB_REF_NAME" "$version" >&2
+            exit 1
+          fi
       - name: Verify release inventory
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm
+          version="$(node -p "require('./app/package.json').version")"
           mapfile -t debs < <(find dist/deb -type f -name '*.deb' -print | sort)
           mapfile -t rpms < <(find dist/rpm -type f -name '*.rpm' -print | sort)
           test "${#debs[@]}" -eq 2
           test "${#rpms[@]}" -eq 2
-          test "$(for package in "${debs[@]}"; do dpkg-deb -f "$package" Package; done | sort)" = $'fang\nfangd'
-          test "$(for package in "${rpms[@]}"; do rpm -qp --queryformat '%{NAME}\n' "$package"; done | sort)" = $'fang\nfangd'
+          fang_deb="dist/deb/Fang_${version}_amd64.deb"
+          fangd_deb="dist/deb/fangd_${version}-1_amd64.deb"
+          fang_rpm="dist/rpm/fang-${version}-1.x86_64.rpm"
+          fangd_rpm="dist/rpm/fangd-${version}-1.x86_64.rpm"
+          for package in "$fang_deb" "$fangd_deb" "$fang_rpm" "$fangd_rpm"; do
+            test -f "$package"
+          done
+
+          verify_deb() {
+            local package="$1"
+            local expected_name="$2"
+            local expected_version="$3"
+            test "$(dpkg-deb -f "$package" Package)" = "$expected_name"
+            test "$(dpkg-deb -f "$package" Version)" = "$expected_version"
+            test "$(dpkg-deb -f "$package" Architecture)" = "amd64"
+          }
+          verify_deb "$fang_deb" fang "$version"
+          verify_deb "$fangd_deb" fangd "${version}-1"
+
+          verify_rpm() {
+            local package="$1"
+            local expected_name="$2"
+            test "$(rpm -qp --queryformat '%{NAME}' "$package")" = "$expected_name"
+            test "$(rpm -qp --queryformat '%{VERSION}' "$package")" = "$version"
+            test "$(rpm -qp --queryformat '%{RELEASE}' "$package")" = "1"
+            test "$(rpm -qp --queryformat '%{ARCH}' "$package")" = "x86_64"
+          }
+          verify_rpm "$fang_rpm" fang
+          verify_rpm "$fangd_rpm" fangd
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
