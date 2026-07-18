@@ -2,6 +2,64 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.9.2',
+      date: '2026-07-17',
+      title: 'Support Fang',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'A dedicated Support screen explains how contributions fund development, testing and future features.',
+            'Fang creator BTC, USDT and Solana wallets include one-click copying, responsible-donation guidance and transfer-safety warnings.',
+            'A planned Peripherals area covers Razer mice, keyboards, headsets, microphones, docks, charging stations, RGB mats and controllers.',
+            'Other future directions include broader laptop support, native Fedora/RHEL packages and an offline, bloatware-free Windows 11 edition.'
+          ]
+        }
+      ]
+    },
+    {
+      version: '0.9.1',
+      date: '2026-07-17',
+      title: 'Safety, reliability & dependency hardening',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'Failure-injection tests cover EC rollback, partial two-fan updates, startup recovery and shutdown restoration without touching real hardware.',
+            'Protocol and process tests reject malformed, stale, truncated and oversized HID replies and verify single-daemon socket behavior and helper timeouts.',
+            'Multi-monitor, power-supply and transactional-autostart fixtures were added alongside unknown-model bring-up documentation.'
+          ]
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'EC replies now require exact framing, length, checksum, transaction, command and data-size matches; invalid replies are retried once.',
+            'A process-wide hardware lock prevents multiple controllers, and live sockets or unrelated filesystem entries are never removed.',
+            'Unknown Razer product IDs default to monitor-only mode unless explicitly approved with an exact PID opt-in.',
+            'KDE and X11 target the primary active display; display helpers now run off the UI thread with hard timeouts.',
+            'Svelte, Vite and the Svelte Vite plugin were upgraded together, and all 0.9.1 package metadata was synchronized.'
+          ]
+        },
+        {
+          kind: 'Fixed',
+          items: [
+            'Svelte 5 now mounts the desktop root with mount(), fixing the empty black application window.',
+            'Razer HID checksums cover the complete payload, matching real Blade EC responses.',
+            'Failed fan changes restore the complete previous state or safely return both fan zones to EC Auto.',
+            'AC detection checks every barrel, USB, USB-C/PD, wireless and compatible external power supply.',
+            'Autostart changes are transactional across the operating system, settings file and frontend state.'
+          ]
+        },
+        {
+          kind: 'Security',
+          items: [
+            'A restrictive Tauri CSP now permits only bundled assets, Tauri IPC and Fang\'s GitHub release check.',
+            'The plist and quick-xml dependency chain was updated to resolve both tracked RustSec advisories; npm audits are clean.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.9.0',
       date: '2026-07-15',
       title: 'In-app update checker',
@@ -239,7 +297,8 @@
     Fixed: 'fix',
     Changed: 'chg',
     Removed: 'remove',
-    Credits: 'cred'
+    Credits: 'cred',
+    Security: 'security'
   };
 </script>
 
@@ -335,6 +394,10 @@
 
   .kind.cred {
     color: var(--green-soft);
+  }
+
+  .kind.security {
+    color: #c792ea;
   }
 
   ul {

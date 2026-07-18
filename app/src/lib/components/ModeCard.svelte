@@ -21,7 +21,7 @@
   <span class="icon"><Icon name={icon} size={26} /></span>
   <span class="title">{title}</span>
   <span class="blurb">{blurb}</span>
-  <span class="led" />
+  <span class="led"></span>
 </button>
 
 <style>

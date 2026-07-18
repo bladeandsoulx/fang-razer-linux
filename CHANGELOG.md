@@ -4,6 +4,89 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] — 2026-07-17 — Support Fang
+
+### Added
+- **Dedicated Support screen.** A new sidebar destination explains how
+  contributions help fund Fang's development, hardware testing and future
+  features while keeping the project independent and open source.
+- **Fang creator wallets.** BTC, USDT and Solana addresses include one-click
+  copying, responsible-donation guidance, and clear address, network and
+  irreversible-transfer warnings.
+- **Community-funded roadmap.** A planned Peripherals area covers external
+  Razer mice, standalone keyboards, headsets, microphones, mouse docks,
+  charging stations, RGB mats and controllers. The screen also highlights
+  broader laptop support, possible native Fedora/RHEL packages and a Windows 11
+  edition that works fully offline without required accounts, cloud services,
+  ads or bundled bloatware. These are future directions, not promises.
+
+## [0.9.1] — 2026-07-17 — Safety, reliability & dependency hardening
+
+### Added
+- **Failure-injection safety coverage.** New tests exercise every EC state
+  application failure boundary, failed rollback, partial two-fan updates,
+  startup recovery, and shutdown restoration without touching real hardware.
+- **Protocol and process regression coverage.** Tests now reject malformed,
+  stale, truncated and oversized HID replies; prove single-daemon socket
+  behavior; and cover helper-process timeouts.
+- **Desktop and power fixtures.** Multi-monitor KDE/X11 fixtures verify primary
+  output selection, power-supply fixtures cover multiple barrel and USB-C/PD
+  adapters, and Rust/JavaScript tests cover transactional autostart failures.
+- **Unknown-model bring-up documentation.** README and hardware-testing docs
+  explain the exact-PID opt-in, conservative limits, verification workflow and
+  how to remove the systemd override after adding a proper model profile.
+
+### Changed
+- **Strict EC response validation.** HID replies must now have the exact report
+  length, valid framing and checksum, and match the request's transaction,
+  command and data size. Malformed or stale replies are retried once and never
+  accepted as successful hardware writes.
+- **One hardware controller at a time.** A process-wide lock is acquired before
+  opening HID or applying state, including for alternate socket paths and the
+  automatic-fan restore helper. Live sockets and unrelated filesystem entries
+  are never removed during startup or shutdown.
+- **Unknown hardware is monitor-only by default.** An unlisted Razer PID is no
+  longer selected just because it exposes a vendor usage page. Bring-up now
+  requires an exact `FANGD_ALLOW_UNVERIFIED_PID` opt-in; known model PIDs are
+  unaffected.
+- **Active primary display selection.** KDE and X11 now target the primary
+  enabled output instead of hardcoding an `eDP` panel, with active-output
+  fallback for layouts without a declared primary. Display helpers have hard
+  timeouts and run off the Tauri UI thread.
+- **Patched frontend toolchain.** Svelte, Vite, and the Svelte Vite plugin were
+  upgraded together to 5.56.5, 6.4.3, and 5.1.1 respectively. Ambiguous
+  self-closing HTML markup was updated for a warning-free Svelte 5 build.
+- **Complete 0.9.1 package synchronization.** Workspace crates, the Tauri app,
+  npm metadata, both lockfiles and the desktop package dependency bounds now
+  agree on the 0.9.1 release line.
+
+### Fixed
+- **Svelte 5 desktop startup.** The frontend now mounts its root component with
+  Svelte 5's `mount()` API instead of the removed class-constructor API, fixing
+  an empty black desktop window after the dependency upgrade.
+- **Correct Razer HID checksum boundaries.** The checksum now covers the full
+  Razer payload after the HID, status and transaction headers, including the
+  final argument byte. This matches the Blade EC's real wire responses.
+- **Transactional fan recovery.** Failed state changes restore the previous
+  complete state; if that also fails, both fan zones are returned to EC Auto.
+  Partial two-zone RPM updates are recovered at the model's safe maximum and
+  target-only writes stay disabled until a complete state application succeeds.
+- **Multiple power adapters.** AC detection now checks all barrel, USB,
+  USB-C/PD, wireless, and compatible external supplies. An offline adapter can
+  no longer hide a later online one.
+- **Transactional autostart settings.** The OS entry is changed before an
+  atomic settings-file replacement, failed writes roll the OS state back, and
+  the frontend publishes only backend-confirmed settings. Startup also
+  reconciles legacy saved state with the actual OS entry; failures are shown in
+  Settings and the toggle returns to its last confirmed value.
+
+### Security
+- Enabled a restrictive production and development Tauri CSP, allowing only
+  bundled assets, Tauri IPC, and Fang's GitHub release-check API request.
+- Updated the Tauri `plist` chain to 1.10.0 and `quick-xml` to 0.41.0, resolving
+  RUSTSEC-2026-0194 and RUSTSEC-2026-0195. Full and production-only npm audits
+  now report zero advisories.
+
 ## [0.9.0] — 2026-07-15 — In-app update checker
 
 ### Added
@@ -207,6 +290,8 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.9.2]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.2
+[0.9.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.1
 [0.9.0]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.0
 [0.8.2]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.2
 [0.8.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.8.1

@@ -13,7 +13,7 @@
 //! [7]     command class
 //! [8]     command id    (get variants = set id | 0x80)
 //! [9..89] args (80 bytes)
-//! [89]    crc = XOR of bytes 2..88
+//! [89]    crc = XOR of bytes 3 through 88 (inclusive)
 //! [90]    reserved (0)
 //! ```
 
@@ -21,6 +21,89 @@ pub const RAZER_VID: u16 = 0x1532;
 pub const REPORT_LEN: usize = 91;
 const ARGS_LEN: usize = 80;
 const TRANSACTION_ID: u8 = 0x1F;
+
+/// Why a feature report could not be accepted as a response.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReportError {
+    Length {
+        actual: usize,
+    },
+    ReportId {
+        actual: u8,
+    },
+    RemainingPackets {
+        actual: u16,
+    },
+    ProtocolType {
+        actual: u8,
+    },
+    DataSize {
+        actual: u8,
+    },
+    Checksum {
+        expected: u8,
+        actual: u8,
+    },
+    TransactionId {
+        expected: u8,
+        actual: u8,
+    },
+    Command {
+        expected_class: u8,
+        expected_id: u8,
+        actual_class: u8,
+        actual_id: u8,
+    },
+    ResponseDataSize {
+        expected: u8,
+        actual: u8,
+    },
+}
+
+impl std::fmt::Display for ReportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReportError::Length { actual } => {
+                write!(f, "feature report length {actual}, expected {REPORT_LEN}")
+            }
+            ReportError::ReportId { actual } => {
+                write!(f, "feature report id {actual:#04x}, expected 0x00")
+            }
+            ReportError::RemainingPackets { actual } => {
+                write!(f, "multi-packet response is unsupported ({actual} remaining)")
+            }
+            ReportError::ProtocolType { actual } => {
+                write!(f, "feature report protocol {actual:#04x}, expected 0x00")
+            }
+            ReportError::DataSize { actual } => {
+                write!(f, "feature report data size {actual} exceeds {ARGS_LEN}")
+            }
+            ReportError::Checksum { expected, actual } => write!(
+                f,
+                "feature report CRC {actual:#04x}, expected {expected:#04x}"
+            ),
+            ReportError::TransactionId { expected, actual } => write!(
+                f,
+                "response transaction id {actual:#04x}, expected {expected:#04x}"
+            ),
+            ReportError::Command {
+                expected_class,
+                expected_id,
+                actual_class,
+                actual_id,
+            } => write!(
+                f,
+                "response command {actual_class:#04x}/{actual_id:#04x}, expected {expected_class:#04x}/{expected_id:#04x}"
+            ),
+            ReportError::ResponseDataSize { expected, actual } => write!(
+                f,
+                "response data size {actual}, expected {expected}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ReportError {}
 
 /// Response status bytes from the EC.
 pub mod status {
@@ -81,14 +164,35 @@ impl Report {
         buf
     }
 
-    /// Parse a 91-byte buffer returned by `get_feature_report`.
-    pub fn from_feature_report(buf: &[u8]) -> Option<Report> {
-        if buf.len() < REPORT_LEN {
-            return None;
+    /// Parse and validate a complete buffer returned by `get_feature_report`.
+    pub fn from_feature_report(buf: &[u8]) -> Result<Report, ReportError> {
+        if buf.len() != REPORT_LEN {
+            return Err(ReportError::Length { actual: buf.len() });
+        }
+        if buf[0] != 0 {
+            return Err(ReportError::ReportId { actual: buf[0] });
+        }
+        let remaining = u16::from_be_bytes([buf[3], buf[4]]);
+        if remaining != 0 {
+            return Err(ReportError::RemainingPackets { actual: remaining });
+        }
+        if buf[5] != 0 {
+            return Err(ReportError::ProtocolType { actual: buf[5] });
+        }
+        if usize::from(buf[6]) > ARGS_LEN {
+            return Err(ReportError::DataSize { actual: buf[6] });
+        }
+        let wire: &[u8; REPORT_LEN] = buf.try_into().expect("length checked above");
+        let expected_crc = crc(wire);
+        if buf[89] != expected_crc {
+            return Err(ReportError::Checksum {
+                expected: expected_crc,
+                actual: buf[89],
+            });
         }
         let mut args = [0u8; ARGS_LEN];
         args.copy_from_slice(&buf[9..9 + ARGS_LEN]);
-        Some(Report {
+        Ok(Report {
             status: buf[1],
             transaction_id: buf[2],
             data_size: buf[6],
@@ -98,16 +202,48 @@ impl Report {
         })
     }
 
+    /// Parse a feature report and prove that it answers `request` rather than
+    /// accepting a stale or unrelated EC response.
+    pub fn response_from_feature_report(
+        request: &Report,
+        buf: &[u8],
+    ) -> Result<Report, ReportError> {
+        let response = Report::from_feature_report(buf)?;
+        if response.transaction_id != request.transaction_id {
+            return Err(ReportError::TransactionId {
+                expected: request.transaction_id,
+                actual: response.transaction_id,
+            });
+        }
+        if !response.answers(request) {
+            return Err(ReportError::Command {
+                expected_class: request.command_class,
+                expected_id: request.command_id,
+                actual_class: response.command_class,
+                actual_id: response.command_id,
+            });
+        }
+        if response.data_size != request.data_size {
+            return Err(ReportError::ResponseDataSize {
+                expected: request.data_size,
+                actual: response.data_size,
+            });
+        }
+        Ok(response)
+    }
+
     /// True when a response's class/id matches the request it answers.
     pub fn answers(&self, request: &Report) -> bool {
         self.command_class == request.command_class && self.command_id == request.command_id
     }
 }
 
-/// XOR checksum over bytes 2..88 of the wire buffer (matches the reference
-/// implementation; the EC rejects reports with a bad CRC).
+/// XOR checksum over bytes 3..=88 of the HID wire buffer. The Razer report
+/// itself starts at wire byte 1 (after the HID report number), and the
+/// reference protocol checks its bytes 2..=87: remaining packets through the
+/// final argument. Status and transaction ID are deliberately not included.
 pub fn crc(buf: &[u8; REPORT_LEN]) -> u8 {
-    buf[2..88].iter().fold(0, |acc, b| acc ^ b)
+    buf[3..89].iter().fold(0, |acc, b| acc ^ b)
 }
 
 // ---- EC commands (class 0x0d: performance / thermals) ----------------------
@@ -225,8 +361,8 @@ mod tests {
         assert_eq!(buf[8], 0x02, "command id");
         assert_eq!(&buf[9..13], &[0x00, 0x01, 0x01, 0x00], "args");
         assert!(buf[13..89].iter().all(|&b| b == 0));
-        // 0x1F ^ 0x04 ^ 0x0d ^ 0x02 ^ 0x01 ^ 0x01
-        assert_eq!(buf[89], 0x14, "crc");
+        // 0x04 ^ 0x0d ^ 0x02 ^ 0x01 ^ 0x01
+        assert_eq!(buf[89], 0x0B, "crc");
         assert_eq!(buf[90], 0x00, "reserved");
     }
 
@@ -238,8 +374,8 @@ mod tests {
         assert_eq!(buf[7], 0x0d);
         assert_eq!(buf[8], 0x01);
         assert_eq!(&buf[9..12], &[0x00, 0x01, 0x2C]);
-        // 0x1F ^ 0x03 ^ 0x0d ^ 0x01 ^ 0x01 ^ 0x2C
-        assert_eq!(buf[89], 0x3D);
+        // 0x03 ^ 0x0d ^ 0x01 ^ 0x01 ^ 0x2C
+        assert_eq!(buf[89], 0x22);
     }
 
     #[test]
@@ -249,8 +385,8 @@ mod tests {
         assert_eq!(buf[7], 0x0d);
         assert_eq!(buf[8], 0x07);
         assert_eq!(&buf[9..12], &[0x00, 0x01, 0x02]);
-        // 0x1F ^ 0x03 ^ 0x0d ^ 0x07 ^ 0x01 ^ 0x02
-        assert_eq!(buf[89], 0x15);
+        // 0x03 ^ 0x0d ^ 0x07 ^ 0x01 ^ 0x02
+        assert_eq!(buf[89], 0x0A);
     }
 
     #[test]
@@ -293,8 +429,8 @@ mod tests {
         assert_eq!(buf[8], 0x12, "command id");
         assert_eq!(buf[9], 0xD0, "args[0]");
         assert!(buf[10..89].iter().all(|&b| b == 0));
-        // 0x1F ^ 0x01 ^ 0x07 ^ 0x12 ^ 0xD0
-        assert_eq!(buf[89], 0xDB, "crc");
+        // 0x01 ^ 0x07 ^ 0x12 ^ 0xD0
+        assert_eq!(buf[89], 0xC4, "crc");
 
         // disabled keeps the threshold in the low bits
         assert_eq!(set_bho(false, 65).args[0], 65);
@@ -308,18 +444,125 @@ mod tests {
         let mut wire = req.to_feature_report();
         wire[1] = status::SUCCESS;
         wire[11] = 44; // EC echoes rpm/100 in args[2]
-        let resp = Report::from_feature_report(&wire).unwrap();
+        wire[89] = crc(&wire);
+        let resp = Report::response_from_feature_report(&req, &wire).unwrap();
         assert_eq!(resp.status, status::SUCCESS);
         assert!(resp.answers(&req));
         assert_eq!(resp.args[2], 44);
     }
 
+    fn successful_response(request: &Report) -> [u8; REPORT_LEN] {
+        let mut wire = request.to_feature_report();
+        wire[1] = status::SUCCESS;
+        wire
+    }
+
     #[test]
-    fn crc_ignores_trailing_bytes() {
+    fn response_rejects_short_and_oversized_reports() {
+        let req = get_fan_rpm(Zone::Fan1);
+        let wire = successful_response(&req);
+        assert_eq!(
+            Report::response_from_feature_report(&req, &wire[..REPORT_LEN - 1]),
+            Err(ReportError::Length {
+                actual: REPORT_LEN - 1
+            })
+        );
+        let mut oversized = wire.to_vec();
+        oversized.push(0);
+        assert_eq!(
+            Report::response_from_feature_report(&req, &oversized),
+            Err(ReportError::Length {
+                actual: REPORT_LEN + 1
+            })
+        );
+    }
+
+    #[test]
+    fn response_rejects_bad_crc() {
+        let req = get_fan_rpm(Zone::Fan1);
+        let mut wire = successful_response(&req);
+        wire[11] = 44;
+        let err = Report::response_from_feature_report(&req, &wire).unwrap_err();
+        assert!(matches!(err, ReportError::Checksum { .. }));
+    }
+
+    #[test]
+    fn response_rejects_wrong_transaction_command_and_size() {
+        let req = get_fan_rpm(Zone::Fan1);
+
+        let mut wrong_transaction = successful_response(&req);
+        wrong_transaction[2] ^= 1;
+        wrong_transaction[89] = crc(&wrong_transaction);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &wrong_transaction),
+            Err(ReportError::TransactionId { .. })
+        ));
+
+        let mut wrong_command = successful_response(&req);
+        wrong_command[8] ^= 1;
+        wrong_command[89] = crc(&wrong_command);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &wrong_command),
+            Err(ReportError::Command { .. })
+        ));
+
+        let mut wrong_size = successful_response(&req);
+        wrong_size[6] -= 1;
+        wrong_size[89] = crc(&wrong_size);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &wrong_size),
+            Err(ReportError::ResponseDataSize { .. })
+        ));
+    }
+
+    #[test]
+    fn response_rejects_invalid_framing() {
+        let req = get_fan_rpm(Zone::Fan1);
+
+        let mut wrong_report_id = successful_response(&req);
+        wrong_report_id[0] = 1;
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &wrong_report_id),
+            Err(ReportError::ReportId { .. })
+        ));
+
+        let mut packets_remaining = successful_response(&req);
+        packets_remaining[4] = 1;
+        packets_remaining[89] = crc(&packets_remaining);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &packets_remaining),
+            Err(ReportError::RemainingPackets { .. })
+        ));
+
+        let mut wrong_protocol = successful_response(&req);
+        wrong_protocol[5] = 1;
+        wrong_protocol[89] = crc(&wrong_protocol);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &wrong_protocol),
+            Err(ReportError::ProtocolType { .. })
+        ));
+
+        let mut oversized_data = successful_response(&req);
+        oversized_data[6] = (ARGS_LEN + 1) as u8;
+        oversized_data[89] = crc(&oversized_data);
+        assert!(matches!(
+            Report::response_from_feature_report(&req, &oversized_data),
+            Err(ReportError::DataSize { .. })
+        ));
+    }
+
+    #[test]
+    fn crc_uses_razer_payload_after_hid_and_transaction_headers() {
         let mut buf = set_cpu_boost(2).to_feature_report();
         let before = crc(&buf);
+        buf[0] = 0xCC; // HID report number
+        buf[1] = 0x02; // status
+        buf[2] = 0xA5; // transaction ID
         buf[89] = 0xAA; // crc byte itself
         buf[90] = 0xBB; // reserved
         assert_eq!(crc(&buf), before);
+
+        buf[88] ^= 1; // final argument is covered
+        assert_ne!(crc(&buf), before);
     }
 }

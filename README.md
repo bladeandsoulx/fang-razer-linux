@@ -129,12 +129,22 @@ for the full list.
 |---|---|
 | Blade 18 2023 (`02a0`), Blade 18 2024 (`02b8`) | ✅ complete profile — fan limits + all feature flags |
 | 46 further models | ✅ limits from Razer-Control's table (field-tested by that project) |
-| Unknown `1532:*` PIDs | ⚠️ conservative fan limits, "unverified" badge |
+| Unknown `1532:*` PIDs | 🔒 monitor-only unless that exact PID is explicitly approved |
 
 Adding a model is a one-line entry in
 [`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs) —
 PRs welcome. First time on real hardware? Follow
 [HARDWARE_TESTING.md](HARDWARE_TESTING.md).
+
+For bring-up of an unknown Blade, approve only its exact hexadecimal PID with
+`FANGD_ALLOW_UNVERIFIED_PID` (for example `02c1`). The daemon still requires a
+vendor-defined HID interface and uses conservative limits. With systemd, add
+the variable through `sudo systemctl edit fangd`, then restart the service:
+
+```ini
+[Service]
+Environment=FANGD_ALLOW_UNVERIFIED_PID=02c1
+```
 
 ## Development (any OS, no Razer hardware needed)
 

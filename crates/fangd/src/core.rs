@@ -37,6 +37,10 @@ pub struct Core {
     last_on_ac: Option<bool>,
     /// Last target successfully sent by the software fan policy.
     fan_target_rpm: Option<u16>,
+    /// True only after a complete state application succeeds. When recovery
+    /// falls back to EC Auto, this prevents target-only writes from silently
+    /// resuming software fan control without first re-enabling manual mode.
+    hardware_state_applied: bool,
     thermal_override_active: bool,
     thermal_override_reason: Option<ThermalOverrideReason>,
     last_cpu_temp_c: Option<f32>,
@@ -52,6 +56,7 @@ impl Core {
             state_path,
             last_on_ac: None,
             fan_target_rpm: None,
+            hardware_state_applied: false,
             thermal_override_active: false,
             thermal_override_reason: None,
             last_cpu_temp_c: None,
@@ -125,7 +130,8 @@ impl Core {
 
     /// Re-push the persisted state to the EC (startup, resume from suspend).
     pub fn reapply(&mut self) {
-        if let Err(e) = self.hw.apply(&self.state) {
+        let state = self.state.clone();
+        if let Err(e) = self.apply_hardware_state(&state) {
             log::warn!("could not apply state to hardware: {e}");
             return;
         }
@@ -136,11 +142,61 @@ impl Core {
     /// Restore the EC's automatic fan policy without changing the persisted
     /// preference. A later daemon start can reapply that preference safely.
     pub fn restore_auto_fan(&mut self) -> Result<(), String> {
-        self.hw.restore_auto_fan(self.state.perf_mode)?;
+        let result = self.hw.restore_auto_fan(self.state.perf_mode);
+        self.mark_hardware_unapplied();
+        result
+    }
+
+    /// Apply all hardware fields as one logical transaction. EC commands are
+    /// inherently sequential, so an error is recovered by reapplying the last
+    /// complete state. If that cannot be proven, EC automatic fan control is
+    /// the final safe state and target-only writes remain disabled.
+    fn apply_hardware_state(&mut self, desired: &AppliedState) -> Result<(), String> {
+        let previous = self.state.clone();
+        let previous_was_applied = self.hardware_state_applied;
+        let apply_error = match self.hw.apply(desired) {
+            Ok(()) => {
+                self.hardware_state_applied = true;
+                return Ok(());
+            }
+            Err(e) => e,
+        };
+
+        let mut rollback_error = None;
+        if previous_was_applied {
+            match self.hw.apply(&previous) {
+                Ok(()) => {
+                    self.hardware_state_applied = true;
+                    self.reset_runtime_fan_target();
+                    return Err(format!("{apply_error}; previous hardware state restored"));
+                }
+                Err(e) => rollback_error = Some(e),
+            }
+        }
+
+        let auto_result = self.hw.restore_auto_fan(previous.perf_mode);
+        self.mark_hardware_unapplied();
+        match (rollback_error, auto_result) {
+            (Some(rollback), Ok(())) => Err(format!(
+                "{apply_error}; restoring the previous state failed: {rollback}; fell back to EC automatic fan control"
+            )),
+            (Some(rollback), Err(auto)) => Err(format!(
+                "{apply_error}; restoring the previous state failed: {rollback}; EC automatic fan recovery also failed: {auto}"
+            )),
+            (None, Ok(())) => Err(format!(
+                "{apply_error}; fell back to EC automatic fan control"
+            )),
+            (None, Err(auto)) => Err(format!(
+                "{apply_error}; EC automatic fan recovery also failed: {auto}"
+            )),
+        }
+    }
+
+    fn mark_hardware_unapplied(&mut self) {
+        self.hardware_state_applied = false;
         self.fan_target_rpm = None;
         self.thermal_override_active = false;
         self.thermal_override_reason = None;
-        Ok(())
     }
 
     /// Normalize persisted values before the first EC command. This protects
@@ -260,6 +316,12 @@ impl Core {
     }
 
     fn update_fan_policy(&mut self) {
+        if !self.hardware_state_applied {
+            self.fan_target_rpm = None;
+            self.thermal_override_active = false;
+            self.thermal_override_reason = None;
+            return;
+        }
         let info = self.hw.info();
         let requested = match &self.state.fan {
             FanMode::Auto => {
@@ -318,7 +380,18 @@ impl Core {
         }
         match self.hw.set_fan_target(target) {
             Ok(()) => self.fan_target_rpm = Some(target),
-            Err(e) => log::warn!("could not update software fan target to {target} RPM: {e}"),
+            Err(e) => {
+                log::warn!("could not update software fan target to {target} RPM: {e}");
+                // A two-zone target update can itself fail halfway through.
+                // Reapply the complete current state, which starts at max RPM;
+                // the next sensor tick may safely lower it again.
+                let current = self.state.clone();
+                if let Err(recovery) = self.apply_hardware_state(&current) {
+                    log::warn!("fan-target recovery: {recovery}");
+                } else {
+                    self.reset_runtime_fan_target();
+                }
+            }
         }
     }
 
@@ -351,7 +424,7 @@ impl Core {
         if next.perf_mode == self.state.perf_mode && next.fan == self.state.fan {
             return false;
         }
-        if let Err(e) = self.hw.apply(&next) {
+        if let Err(e) = self.apply_hardware_state(&next) {
             log::warn!("power automation: applying {mode:?} failed: {e}");
             return false;
         }
@@ -452,7 +525,7 @@ impl Core {
             }
             _ => return Ok(false),
         }
-        self.hw.apply(&next)?;
+        self.apply_hardware_state(&next)?;
         self.state = next;
         self.reset_runtime_fan_target();
         self.update_fan_policy();
@@ -510,6 +583,10 @@ fn thermal_override_next(active: bool, cpu: Option<f32>, gpu: Option<f32>) -> bo
 mod tests {
     use super::*;
     use crate::hw::ModelInfo;
+    use fang_protocol::api::PerfMode;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
 
     const CURVE: [FanCurvePoint; 3] = [
         FanCurvePoint {
@@ -567,6 +644,96 @@ mod tests {
         fn sample(&mut self) -> Sample {
             self.sample.clone()
         }
+    }
+
+    struct ScriptedTrace {
+        applied: Mutex<Vec<AppliedState>>,
+        apply_results: Mutex<VecDeque<Result<(), String>>>,
+        restore_results: Mutex<VecDeque<Result<(), String>>>,
+        fan_target_results: Mutex<VecDeque<Result<(), String>>>,
+        restores: AtomicUsize,
+        fan_targets: AtomicUsize,
+    }
+
+    struct ScriptedHw {
+        trace: Arc<ScriptedTrace>,
+        sample: Sample,
+    }
+
+    impl Hw for ScriptedHw {
+        fn info(&self) -> ModelInfo {
+            ModelInfo {
+                name: "scripted laptop".into(),
+                device_present: true,
+                verified: true,
+                mock: true,
+                fan_rpm_min: 2200,
+                fan_rpm_max: 5000,
+                has_cpu_boost_oc: true,
+                has_bho: true,
+                has_logo: true,
+            }
+        }
+
+        fn apply(&mut self, state: &AppliedState) -> Result<(), String> {
+            self.trace.applied.lock().unwrap().push(state.clone());
+            self.trace
+                .apply_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or(Ok(()))
+        }
+
+        fn set_fan_target(&mut self, _rpm: u16) -> Result<(), String> {
+            self.trace.fan_targets.fetch_add(1, Ordering::Relaxed);
+            self.trace
+                .fan_target_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or(Ok(()))
+        }
+
+        fn restore_auto_fan(&mut self, _perf_mode: PerfMode) -> Result<(), String> {
+            self.trace.restores.fetch_add(1, Ordering::Relaxed);
+            self.trace
+                .restore_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or(Ok(()))
+        }
+
+        fn sample(&mut self) -> Sample {
+            self.sample.clone()
+        }
+    }
+
+    fn scripted_core(
+        state: AppliedState,
+        sample: Sample,
+        apply_results: Vec<Result<(), String>>,
+        restore_results: Vec<Result<(), String>>,
+    ) -> (Core, Arc<ScriptedTrace>) {
+        let trace = Arc::new(ScriptedTrace {
+            applied: Mutex::new(Vec::new()),
+            apply_results: Mutex::new(apply_results.into()),
+            restore_results: Mutex::new(restore_results.into()),
+            fan_target_results: Mutex::new(VecDeque::new()),
+            restores: AtomicUsize::new(0),
+            fan_targets: AtomicUsize::new(0),
+        });
+        let hw = ScriptedHw {
+            trace: Arc::clone(&trace),
+            sample,
+        };
+        let core = Core::new(
+            Box::new(hw),
+            state,
+            std::env::temp_dir().join("fangd-core-transaction-test-state.json"),
+        );
+        (core, trace)
     }
 
     fn core_with(fan: FanMode, sample: Sample) -> Core {
@@ -721,5 +888,131 @@ mod tests {
         assert_eq!(normalize_rpm(3349, 2200, 5000), 3300);
         assert_eq!(normalize_rpm(3350, 2200, 5000), 3400);
         assert_eq!(normalize_rpm(9000, 2200, 5000), 5000);
+    }
+
+    #[test]
+    fn failed_state_change_restores_the_previous_complete_state() {
+        let initial = AppliedState::default();
+        let (mut core, trace) = scripted_core(
+            initial.clone(),
+            Sample::default(),
+            vec![Ok(()), Err("forward write failed".into()), Ok(())],
+            vec![],
+        );
+        core.reapply();
+
+        let error = core
+            .handle_set(&Command::SetFan {
+                fan: FanMode::Manual { rpm: 3000 },
+            })
+            .expect_err("the failed update must be reported");
+
+        assert!(
+            error.contains("previous hardware state restored"),
+            "{error}"
+        );
+        assert_eq!(core.state, initial);
+        assert!(core.hardware_state_applied);
+        assert_eq!(trace.restores.load(Ordering::Relaxed), 0);
+        let applied = trace.applied.lock().unwrap();
+        assert_eq!(applied.len(), 3);
+        assert!(matches!(&applied[1].fan, FanMode::Manual { rpm: 3000 }));
+        assert_eq!(applied[2], initial);
+    }
+
+    #[test]
+    fn failed_rollback_falls_back_to_auto_and_blocks_target_writes() {
+        let initial = AppliedState {
+            fan: FanMode::Manual { rpm: 3000 },
+            ..AppliedState::default()
+        };
+        let (mut core, trace) = scripted_core(
+            initial.clone(),
+            Sample {
+                cpu_temp_c: Some(70.0),
+                gpu_temp_c: Some(65.0),
+                ..Sample::default()
+            },
+            vec![
+                Ok(()),
+                Err("forward write failed".into()),
+                Err("rollback write failed".into()),
+            ],
+            vec![Ok(())],
+        );
+        core.reapply();
+
+        let error = core
+            .handle_set(&Command::SetPerfMode {
+                perf_mode: fang_protocol::api::PerfMode::Gaming,
+                cpu_boost: None,
+                gpu_boost: None,
+            })
+            .expect_err("the failed update must be reported");
+
+        assert!(
+            error.contains("fell back to EC automatic fan control"),
+            "{error}"
+        );
+        assert_eq!(core.state, initial);
+        assert!(!core.hardware_state_applied);
+        assert_eq!(trace.restores.load(Ordering::Relaxed), 1);
+
+        core.sample();
+        assert_eq!(trace.fan_targets.load(Ordering::Relaxed), 0);
+        assert_eq!(core.fan_target_rpm, None);
+    }
+
+    #[test]
+    fn failed_initial_apply_uses_auto_without_assuming_a_rollback_state() {
+        let initial = AppliedState {
+            fan: FanMode::Manual { rpm: 3000 },
+            ..AppliedState::default()
+        };
+        let (mut core, trace) = scripted_core(
+            initial,
+            Sample::default(),
+            vec![Err("startup write failed".into())],
+            vec![Ok(())],
+        );
+
+        core.reapply();
+
+        assert!(!core.hardware_state_applied);
+        assert_eq!(trace.applied.lock().unwrap().len(), 1);
+        assert_eq!(trace.restores.load(Ordering::Relaxed), 1);
+        core.sample();
+        assert_eq!(trace.fan_targets.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn partial_fan_target_failure_reapplies_both_zones_at_maximum() {
+        let initial = AppliedState {
+            fan: FanMode::Manual { rpm: 3000 },
+            ..AppliedState::default()
+        };
+        let (mut core, trace) = scripted_core(
+            initial,
+            Sample {
+                cpu_temp_c: Some(70.0),
+                gpu_temp_c: Some(65.0),
+                ..Sample::default()
+            },
+            vec![Ok(()), Ok(())],
+            vec![],
+        );
+        trace
+            .fan_target_results
+            .lock()
+            .unwrap()
+            .push_back(Err("fan 2 target failed".into()));
+        core.reapply();
+
+        core.sample();
+
+        assert!(core.hardware_state_applied);
+        assert_eq!(trace.fan_targets.load(Ordering::Relaxed), 1);
+        assert_eq!(trace.applied.lock().unwrap().len(), 2);
+        assert_eq!(core.fan_target_rpm, Some(5000));
     }
 }

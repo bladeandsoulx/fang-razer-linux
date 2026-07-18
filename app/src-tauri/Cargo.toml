@@ -1,7 +1,7 @@
 [package]
 name = "fang"
 description = "Fang — Synapse-style control center for Razer Blade laptops on Linux"
-version = "0.9.0"
+version = "0.9.2"
 edition = "2021"
 license = "GPL-2.0"
 repository = "https://github.com/bladeandsoulx/fang-razer-linux"
@@ -21,7 +21,7 @@ tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
-tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros"] }
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros", "rt"] }
 log = "0.4"
 env_logger = "0.11"
 

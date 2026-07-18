@@ -8,13 +8,20 @@
   let slider = null; // local slider position before release
   let updateStatus = 'idle';
   let updateInfo = null;
+  let settingsError = '';
 
   $: bhoOn = $status?.bho_enabled ?? false;
   $: threshold = slider ?? $status?.bho_threshold ?? 80;
   $: fill = ((threshold - 50) / 30) * 100;
 
-  function save() {
-    saveUiSettings($uiSettings);
+  async function save(field, checked) {
+    settingsError = '';
+    try {
+      await saveUiSettings({ ...$uiSettings, [field]: checked });
+    } catch (error) {
+      console.error('save UI settings', error);
+      settingsError = `Could not save application settings: ${error}`;
+    }
   }
 
   function toggleBho(e) {
@@ -53,18 +60,21 @@
   <div class="card rise pad">
     <span class="card-label">Application</span>
     <Toggle
-      bind:checked={$uiSettings.autostart}
-      on:change={save}
+      checked={$uiSettings.autostart}
+      on:change={(event) => save('autostart', event.target.checked)}
       label="Launch on login"
       hint="Start Fang minimized to the tray when you sign in"
     />
-    <div class="rule" />
+    <div class="rule"></div>
     <Toggle
-      bind:checked={$uiSettings.close_to_tray}
-      on:change={save}
+      checked={$uiSettings.close_to_tray}
+      on:change={(event) => save('close_to_tray', event.target.checked)}
       label="Close to tray"
       hint="Keep running in the tray when the window is closed"
     />
+    {#if settingsError}
+      <div class="flag warn"><Icon name="warn" size={14} /> {settingsError}</div>
+    {/if}
   </div>
 
   <div class="card rise pad" style="animation-delay:60ms">

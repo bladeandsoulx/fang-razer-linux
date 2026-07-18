@@ -53,19 +53,79 @@ mod backend {
 #[cfg(target_os = "linux")]
 mod backend {
     use super::DisplayInfo;
-    use std::process::Command;
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const COMMAND_TIMEOUT: Duration = Duration::from_secs(2);
 
     fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
-        let out = Command::new(cmd)
+        run_with_timeout(cmd, args, COMMAND_TIMEOUT)
+    }
+
+    /// Drain both pipes while polling the child so a helper cannot block on a
+    /// full output buffer. On timeout the child is terminated and reaped.
+    fn run_with_timeout(cmd: &str, args: &[&str], timeout: Duration) -> Result<String, String> {
+        let mut child = Command::new(cmd)
             .args(args)
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| format!("{cmd}: {e}"))?;
-        if out.status.success() {
-            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+
+        let mut stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| format!("{cmd}: no stdout"))?;
+        let mut stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| format!("{cmd}: no stderr"))?;
+        let stdout_reader = thread::spawn(move || {
+            let mut bytes = Vec::new();
+            stdout.read_to_end(&mut bytes).map(|_| bytes)
+        });
+        let stderr_reader = thread::spawn(move || {
+            let mut bytes = Vec::new();
+            stderr.read_to_end(&mut bytes).map(|_| bytes)
+        });
+
+        let started = Instant::now();
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) if started.elapsed() < timeout => {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Ok(None) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("{cmd}: timed out after {} ms", timeout.as_millis()));
+                }
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("{cmd}: wait: {error}"));
+                }
+            }
+        };
+
+        let stdout = stdout_reader
+            .join()
+            .map_err(|_| format!("{cmd}: stdout reader panicked"))?
+            .map_err(|e| format!("{cmd}: read stdout: {e}"))?;
+        let stderr = stderr_reader
+            .join()
+            .map_err(|_| format!("{cmd}: stderr reader panicked"))?
+            .map_err(|e| format!("{cmd}: read stderr: {e}"))?;
+
+        if status.success() {
+            Ok(String::from_utf8_lossy(&stdout).into_owned())
         } else {
             Err(format!(
                 "{cmd}: {}",
-                String::from_utf8_lossy(&out.stderr).trim()
+                String::from_utf8_lossy(&stderr).trim()
             ))
         }
     }
@@ -103,22 +163,30 @@ mod backend {
         if mutter::available() {
             return mutter::set(hz);
         }
-        let info = get();
-        if !info.supported {
-            return Err(info.hint);
+
+        if let Ok(out) = run("kscreen-doctor", &["-o"]) {
+            if let Some(info) = super::parse::kscreen(&out) {
+                if !info.available_hz.contains(&hz) {
+                    return Err(format!("{hz} Hz not available on {}", info.output));
+                }
+                run(
+                    "kscreen-doctor",
+                    &[&format!(
+                        "output.{}.mode.{}@{}",
+                        info.output, info.resolution, hz
+                    )],
+                )?;
+                return Ok(get());
+            }
         }
-        if !info.available_hz.contains(&hz) {
-            return Err(format!("{hz} Hz not available on {}", info.output));
-        }
-        if run("kscreen-doctor", &["-o"]).is_ok() {
-            run(
-                "kscreen-doctor",
-                &[&format!(
-                    "output.{}.mode.{}@{}",
-                    info.output, info.resolution, hz
-                )],
-            )?;
-        } else {
+
+        if let Ok(out) = run("xrandr", &[]) {
+            let Some(info) = super::parse::xrandr(&out) else {
+                return Err(unsupported().hint);
+            };
+            if !info.available_hz.contains(&hz) {
+                return Err(format!("{hz} Hz not available on {}", info.output));
+            }
             run(
                 "xrandr",
                 &[
@@ -130,8 +198,25 @@ mod backend {
                     &hz.to_string(),
                 ],
             )?;
+            return Ok(get());
         }
-        Ok(get())
+
+        Err(unsupported().hint)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::run_with_timeout;
+        use std::time::{Duration, Instant};
+
+        #[test]
+        fn helper_processes_have_a_hard_timeout() {
+            let started = Instant::now();
+            let error = run_with_timeout("sleep", &["2"], Duration::from_millis(40))
+                .expect_err("sleep should time out");
+            assert!(error.contains("timed out"), "{error}");
+            assert!(started.elapsed() < Duration::from_secs(1));
+        }
     }
 
     /// GNOME Mutter DisplayConfig over the session bus. Reads the current
@@ -373,14 +458,38 @@ mod backend {
 mod parse {
     use super::DisplayInfo;
 
-    /// `kscreen-doctor -o` — internal panel line looks like:
+    /// `kscreen-doctor -o` — an active output line looks like:
     /// `Output: 1 eDP-1 enabled connected priority 1 Panel Modes: 0:2560x1600@240*! 1:2560x1600@60 ...`
     pub fn kscreen(out: &str) -> Option<DisplayInfo> {
         let clean = strip_ansi(out);
-        let line = clean
+        clean
             .lines()
-            .find(|l| l.contains("Output:") && l.contains("eDP"))?;
+            .filter_map(kscreen_line)
+            // KScreen priority 1 is the primary output. If a compositor does
+            // not assign 1, the lowest positive priority is the best active
+            // fallback; missing/zero priority sorts last.
+            .min_by_key(|(priority, _)| match priority {
+                0 => u32::MAX,
+                priority => *priority,
+            })
+            .map(|(_, info)| info)
+    }
+
+    fn kscreen_line(line: &str) -> Option<(u32, DisplayInfo)> {
+        if !(line.contains("Output:")
+            && line.split_whitespace().any(|part| part == "enabled")
+            && line.split_whitespace().any(|part| part == "connected"))
+        {
+            return None;
+        }
+
         let output = line.split_whitespace().nth(2)?.to_string();
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        let priority = fields
+            .windows(2)
+            .find(|pair| pair[0] == "priority")
+            .and_then(|pair| pair[1].parse::<u32>().ok())
+            .unwrap_or(0);
         let modes = line.split("Modes:").nth(1)?;
         let mut current = (String::new(), 0u32);
         let mut rates: Vec<(String, u32)> = Vec::new();
@@ -410,43 +519,61 @@ mod parse {
             .collect();
         available.sort_unstable();
         available.dedup();
-        Some(DisplayInfo {
-            supported: true,
-            output,
-            resolution: current.0,
-            current_hz: current.1,
-            available_hz: available,
-            hint: String::new(),
-        })
+        Some((
+            priority,
+            DisplayInfo {
+                supported: true,
+                output,
+                resolution: current.0,
+                current_hz: current.1,
+                available_hz: available,
+                hint: String::new(),
+            },
+        ))
     }
 
-    /// `xrandr` — internal panel block:
+    /// `xrandr` — active output block:
     /// ```text
     /// eDP-1 connected primary 2560x1600+0+0 ...
     ///    2560x1600    240.00*+  60.00
     /// ```
     pub fn xrandr(out: &str) -> Option<DisplayInfo> {
-        let mut lines = out.lines().peekable();
-        while let Some(line) = lines.next() {
-            if !(line.starts_with("eDP") && line.contains(" connected")) {
+        let lines: Vec<&str> = out.lines().collect();
+        let mut candidates = Vec::new();
+        let mut index = 0;
+
+        while index < lines.len() {
+            let line = lines[index];
+            index += 1;
+            if line.starts_with(char::is_whitespace) || !line.contains(" connected") {
                 continue;
             }
-            let output = line.split_whitespace().next()?.to_string();
+            let Some(output) = line.split_whitespace().next() else {
+                continue;
+            };
+            let primary = line.split_whitespace().any(|field| field == "primary");
             let mut resolution = String::new();
             let mut current = 0u32;
             let mut available = Vec::new();
-            for mode in lines.by_ref() {
+
+            while index < lines.len() {
+                let mode = lines[index];
                 if !mode.starts_with(' ') {
                     break;
                 }
+                index += 1;
                 let mut parts = mode.split_whitespace();
-                let res = parts.next()?.to_string();
+                let Some(res) = parts.next() else {
+                    continue;
+                };
                 let rates: Vec<&str> = parts.collect();
                 let is_current_res = rates.iter().any(|r| r.contains('*'));
                 if is_current_res {
-                    resolution = res;
+                    resolution = res.to_string();
                     for r in &rates {
-                        let hz = r.trim_end_matches(['*', '+']).parse::<f32>().ok()?;
+                        let Ok(hz) = r.trim_end_matches(['*', '+']).parse::<f32>() else {
+                            continue;
+                        };
                         let hz = hz.round() as u32;
                         if r.contains('*') {
                             current = hz;
@@ -455,21 +582,31 @@ mod parse {
                     }
                 }
             }
-            if current == 0 {
-                return None;
+
+            // Connected but disabled outputs have no current (`*`) mode and
+            // must not outrank an actually active screen.
+            if current != 0 {
+                available.sort_unstable();
+                available.dedup();
+                candidates.push((
+                    primary,
+                    DisplayInfo {
+                        supported: true,
+                        output: output.to_string(),
+                        resolution,
+                        current_hz: current,
+                        available_hz: available,
+                        hint: String::new(),
+                    },
+                ));
             }
-            available.sort_unstable();
-            available.dedup();
-            return Some(DisplayInfo {
-                supported: true,
-                output,
-                resolution,
-                current_hz: current,
-                available_hz: available,
-                hint: String::new(),
-            });
         }
-        None
+
+        candidates
+            .iter()
+            .find(|(primary, _)| *primary)
+            .or_else(|| candidates.first())
+            .map(|(_, info)| info.clone())
     }
 
     fn strip_ansi(s: &str) -> String {
@@ -514,6 +651,51 @@ HDMI-1 disconnected (normal left inverted)
             assert_eq!(info.output, "eDP-1");
             assert_eq!(info.current_hz, 240);
             assert_eq!(info.available_hz, vec![60, 240]);
+        }
+
+        #[test]
+        fn kscreen_selects_primary_active_external_output() {
+            let out = "\
+Output: 1 eDP-1 enabled connected priority 2 Panel Modes: 0:2560x1600@240*! 1:2560x1600@60 Geometry: 0,0 2560x1600
+Output: 2 DP-2 enabled connected priority 1 DisplayPort Modes: 0:3840x2160@144*! 1:3840x2160@60 Geometry: 2560,0 3840x2160
+Output: 3 HDMI-1 disabled connected priority 0 HDMI Modes: 0:1920x1080@60*! Geometry: 0,0 1920x1080
+";
+            let info = super::super::parse::kscreen(out).unwrap();
+            assert_eq!(info.output, "DP-2");
+            assert_eq!(info.resolution, "3840x2160");
+            assert_eq!(info.current_hz, 144);
+            assert_eq!(info.available_hz, vec![60, 144]);
+        }
+
+        #[test]
+        fn xrandr_selects_primary_active_external_output() {
+            let out = "\
+Screen 0: minimum 320 x 200, current 6400 x 2160, maximum 16384 x 16384
+eDP-1 connected 2560x1600+0+0 (normal left inverted) 345mm x 215mm
+   2560x1600    240.00*+  60.00
+DP-2 connected primary 3840x2160+2560+0 (normal left inverted) 600mm x 340mm
+   3840x2160    143.98*+  120.00  60.00
+HDMI-1 connected (normal left inverted)
+   1920x1080     60.00 +
+";
+            let info = super::super::parse::xrandr(out).unwrap();
+            assert_eq!(info.output, "DP-2");
+            assert_eq!(info.resolution, "3840x2160");
+            assert_eq!(info.current_hz, 144);
+            assert_eq!(info.available_hz, vec![60, 120, 144]);
+        }
+
+        #[test]
+        fn xrandr_falls_back_to_first_active_output_without_primary() {
+            let out = "\
+DP-1 connected (normal left inverted)
+   1920x1080     60.00 +
+HDMI-1 connected 1920x1080+0+0 (normal left inverted)
+   1920x1080     75.00*+  60.00
+";
+            let info = super::super::parse::xrandr(out).unwrap();
+            assert_eq!(info.output, "HDMI-1");
+            assert_eq!(info.current_hz, 75);
         }
     }
 }

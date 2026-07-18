@@ -5,8 +5,9 @@
 //! continuation of razer-laptop-control. Feature flags cover CPU overclock,
 //! the battery charge limiter, and the lid logo LED.
 //!
-//! Listed PIDs are recognized models with `verified: true`; unknown PIDs get
-//! [`FALLBACK`] limits and `verified: false`.
+//! Listed PIDs are recognized models with `verified: true`. Unknown PIDs are
+//! monitor-only by default; an operator may explicitly approve one exact PID,
+//! in which case it gets [`FALLBACK`] limits and `verified: false`.
 
 pub struct LaptopModel {
     pub pid: u16,
@@ -456,7 +457,7 @@ pub const MODELS: &[LaptopModel] = &[
     },
 ];
 
-/// Conservative limits for Razer laptops not (yet) in [`MODELS`].
+/// Conservative limits for an explicitly approved laptop not yet in [`MODELS`].
 pub const FALLBACK: LaptopModel = LaptopModel {
     pid: 0x0000,
     name: "Unknown Razer laptop",

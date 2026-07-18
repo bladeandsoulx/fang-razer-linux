@@ -255,3 +255,63 @@ fn sigterm_restores_auto_and_exits_cleanly() {
     assert!(restore.status.success());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[cfg(unix)]
+#[test]
+fn second_unix_daemon_is_rejected_without_disturbing_the_first() {
+    use std::os::unix::net::UnixStream;
+
+    let bin = env!("CARGO_BIN_EXE_fangd");
+    let dir = std::env::temp_dir().join(format!("fangd-singleton-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("fangd.sock");
+    let state = dir.join("state.json");
+
+    let child = Command::new(bin)
+        .args(["--mock", "--socket"])
+        .arg(&socket)
+        .args(["--state"])
+        .arg(&state)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn first fangd");
+    let daemon = DaemonGuard(child);
+
+    let stream = (0..50)
+        .find_map(|_| {
+            let connected = UnixStream::connect(&socket).ok();
+            if connected.is_none() {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            connected
+        })
+        .expect("first fangd did not start listening");
+
+    let second = Command::new(bin)
+        .args(["--mock", "--socket"])
+        .arg(&socket)
+        .args(["--state"])
+        .arg(dir.join("second-state.json"))
+        .output()
+        .expect("run second fangd");
+    assert!(
+        !second.status.success(),
+        "second daemon unexpectedly started"
+    );
+    let stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(stderr.contains("another fangd instance"), "{stderr}");
+
+    // The rejected process must not unlink or replace the first listener.
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let mut writer = stream;
+    let response = roundtrip(&mut reader, &mut writer, r#"{"id":1,"cmd":"ping"}"#);
+    assert_eq!(response["ok"], true, "{response}");
+
+    drop(daemon);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -18,6 +18,8 @@ use tokio::sync::Mutex;
 const DEFAULT_TCP: &str = "127.0.0.1:7331";
 #[cfg(unix)]
 const DEFAULT_SOCKET: &str = "/run/fangd.sock";
+#[cfg(unix)]
+const HARDWARE_LOCK: &str = "/run/fangd.lock";
 
 struct Args {
     mock: bool,
@@ -68,6 +70,179 @@ fn parse_args() -> Args {
     args
 }
 
+#[cfg(unix)]
+struct InstanceLock {
+    _file: std::fs::File,
+}
+
+#[cfg(unix)]
+impl InstanceLock {
+    fn acquire(path: &std::path::Path) -> std::io::Result<Self> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+            .open(path)
+            .map_err(|e| {
+                std::io::Error::new(
+                    e.kind(),
+                    format!("open instance lock {}: {e}", path.display()),
+                )
+            })?;
+        // SAFETY: `file` owns a valid descriptor for the lifetime of the lock.
+        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        if result != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::WouldBlock {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    format!("another fangd instance holds {}", path.display()),
+                ));
+            }
+            return Err(std::io::Error::new(
+                error.kind(),
+                format!("lock {}: {error}", path.display()),
+            ));
+        }
+        Ok(InstanceLock { _file: file })
+    }
+}
+
+#[cfg(unix)]
+struct UnixSocketGuard {
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+    _instance_lock: InstanceLock,
+}
+
+#[cfg(unix)]
+impl Drop for UnixSocketGuard {
+    fn drop(&mut self) {
+        use std::os::unix::fs::{FileTypeExt, MetadataExt};
+
+        let Ok(metadata) = std::fs::symlink_metadata(&self.path) else {
+            return;
+        };
+        // Never unlink a path another process replaced while Fang was
+        // shutting down. Only remove the exact socket inode we bound.
+        if metadata.file_type().is_socket()
+            && metadata.dev() == self.device
+            && metadata.ino() == self.inode
+        {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn derived_socket_lock_path(socket_path: &std::path::Path) -> PathBuf {
+    let mut path = socket_path.as_os_str().to_os_string();
+    path.push(".lock");
+    path.into()
+}
+
+/// Bind without ever deleting a live listener or a non-socket filesystem
+/// entry. A refused connection proves that a leftover socket inode is stale.
+#[cfg(unix)]
+fn bind_unix_socket(path: &std::path::Path) -> std::io::Result<std::os::unix::net::UnixListener> {
+    use std::os::unix::fs::FileTypeExt;
+    use std::os::unix::net::{UnixListener, UnixStream};
+
+    match UnixListener::bind(path) {
+        Ok(listener) => return Ok(listener),
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {}
+        Err(e) => {
+            return Err(std::io::Error::new(
+                e.kind(),
+                format!("bind {}: {e}", path.display()),
+            ))
+        }
+    }
+
+    match UnixStream::connect(path) {
+        Ok(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("another fangd instance is listening on {}", path.display()),
+            ))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return UnixListener::bind(path).map_err(|retry| {
+                std::io::Error::new(
+                    retry.kind(),
+                    format!("bind {} after startup race: {retry}", path.display()),
+                )
+            })
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {}
+        Err(e) => {
+            return Err(std::io::Error::new(
+                e.kind(),
+                format!(
+                    "cannot prove that existing socket {} is stale: {e}",
+                    path.display()
+                ),
+            ))
+        }
+    }
+
+    let metadata = std::fs::symlink_metadata(path).map_err(|e| {
+        std::io::Error::new(
+            e.kind(),
+            format!("inspect existing socket {}: {e}", path.display()),
+        )
+    })?;
+    if !metadata.file_type().is_socket() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!("refusing to replace non-socket path {}", path.display()),
+        ));
+    }
+    std::fs::remove_file(path).map_err(|e| {
+        std::io::Error::new(
+            e.kind(),
+            format!("remove stale socket {}: {e}", path.display()),
+        )
+    })?;
+    UnixListener::bind(path).map_err(|e| {
+        std::io::Error::new(
+            e.kind(),
+            format!("bind {} after removing stale socket: {e}", path.display()),
+        )
+    })
+}
+
+#[cfg(unix)]
+fn prepare_unix_socket(
+    path: &std::path::Path,
+    lock_path: &std::path::Path,
+) -> std::io::Result<(UnixSocketGuard, std::os::unix::net::UnixListener)> {
+    use std::os::unix::fs::MetadataExt;
+
+    let instance_lock = InstanceLock::acquire(lock_path)?;
+    let listener = bind_unix_socket(path)?;
+    let metadata = std::fs::symlink_metadata(path).map_err(|e| {
+        let _ = std::fs::remove_file(path);
+        std::io::Error::new(
+            e.kind(),
+            format!("inspect newly bound socket {}: {e}", path.display()),
+        )
+    })?;
+    let guard = UnixSocketGuard {
+        path: path.to_path_buf(),
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        _instance_lock: instance_lock,
+    };
+    Ok((guard, listener))
+}
+
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -78,6 +253,39 @@ async fn main() {
             std::process::exit(2);
         }
     }
+
+    // Claim the process-wide hardware lock and bind the socket before opening
+    // HID or applying any persisted state. A rejected second process therefore
+    // cannot issue even one EC command. Mock restore helpers do not touch real
+    // hardware and retain their unprivileged, socket-free behavior in tests.
+    #[cfg(unix)]
+    let unix_server = if args.tcp.is_none() && !(args.mock && args.restore_auto) {
+        let path = args
+            .socket
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET));
+        let lock_path = if args.mock {
+            derived_socket_lock_path(&path)
+        } else {
+            PathBuf::from(HARDWARE_LOCK)
+        };
+        let (guard, listener) = match prepare_unix_socket(&path, &lock_path) {
+            Ok(prepared) => prepared,
+            Err(e) => {
+                eprintln!("cannot start fangd: {e}");
+                std::process::exit(1);
+            }
+        };
+        listener
+            .set_nonblocking(true)
+            .unwrap_or_else(|e| panic!("set {} nonblocking: {e}", path.display()));
+        let listener = tokio::net::UnixListener::from_std(listener)
+            .unwrap_or_else(|e| panic!("register {} with async runtime: {e}", path.display()));
+        grant_socket_access(&path);
+        Some((path, listener, guard))
+    } else {
+        None
+    };
 
     let state_path = args.state.clone().unwrap_or_else(state::default_state_path);
     let state = AppliedState::load(&state_path);
@@ -118,15 +326,7 @@ async fn main() {
     ));
 
     #[cfg(unix)]
-    if args.tcp.is_none() {
-        let path = args
-            .socket
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET));
-        let _ = std::fs::remove_file(&path);
-        let listener = tokio::net::UnixListener::bind(&path)
-            .unwrap_or_else(|e| panic!("bind {}: {e}", path.display()));
-        grant_socket_access(&path);
+    if let Some((path, listener, _socket_guard)) = unix_server {
         log::info!("listening on {}", path.display());
         let shutdown = shutdown_signal();
         tokio::pin!(shutdown);
@@ -147,7 +347,6 @@ async fn main() {
         telemetry_task.abort();
         ddc_rescan_task.abort();
         restore_auto_before_exit(&core).await;
-        let _ = std::fs::remove_file(&path);
         return;
     }
 
@@ -253,6 +452,8 @@ fn fang_gid() -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::validate_tcp;
+    #[cfg(unix)]
+    use super::{prepare_unix_socket, InstanceLock};
 
     #[test]
     fn tcp_is_mock_only_and_loopback_only() {
@@ -262,5 +463,77 @@ mod tests {
         assert!(validate_tcp("0.0.0.0:7331", true).is_err());
         assert!(validate_tcp("192.168.1.5:7331", true).is_err());
         assert!(validate_tcp("localhost:7331", true).is_err());
+    }
+
+    #[cfg(unix)]
+    fn socket_test_dir(name: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("fangd-{name}-socket-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn instance_lock_rejects_a_second_holder_and_releases_on_drop() {
+        let dir = socket_test_dir("instance-lock");
+        let path = dir.join("fangd.lock");
+        let first = InstanceLock::acquire(&path).unwrap();
+        let error = InstanceLock::acquire(&path).err().unwrap();
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+
+        drop(first);
+        InstanceLock::acquire(&path).expect("lock must release with its file");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn live_socket_is_refused_and_never_unlinked() {
+        let dir = socket_test_dir("live");
+        let socket = dir.join("fangd.sock");
+        let lock = dir.join("fangd.lock");
+        let live = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+
+        let error = prepare_unix_socket(&socket, &lock).err().unwrap();
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert!(socket.exists(), "the live socket path was removed");
+
+        drop(live);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stale_socket_is_replaced_and_owned_socket_is_cleaned_up() {
+        let dir = socket_test_dir("stale");
+        let socket = dir.join("fangd.sock");
+        let lock = dir.join("fangd.lock");
+        let stale = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        drop(stale);
+        assert!(socket.exists());
+
+        let (guard, listener) = prepare_unix_socket(&socket, &lock).unwrap();
+        std::os::unix::net::UnixStream::connect(&socket)
+            .expect("replacement listener must accept connections");
+        drop(listener);
+        drop(guard);
+        assert!(!socket.exists(), "owned socket was not cleaned up");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn regular_file_at_socket_path_is_never_removed() {
+        let dir = socket_test_dir("regular-file");
+        let socket = dir.join("fangd.sock");
+        let lock = dir.join("fangd.lock");
+        std::fs::write(&socket, b"keep me").unwrap();
+
+        let error = prepare_unix_socket(&socket, &lock).err().unwrap();
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read(&socket).unwrap(), b"keep me");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

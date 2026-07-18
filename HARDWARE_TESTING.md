@@ -12,9 +12,20 @@ sensors | head -30        # confirm coretemp is visible
 ```
 
 Fang recognizes the PIDs in `crates/fang-protocol/src/models.rs`. An unknown
-Razer laptop PID runs in "unverified" mode: controls work with conservative
-fan limits and the UI shows a warning badge. Add the PID and verified limits
-to the model table before treating it as fully supported.
+Razer PID is monitor-only by default, even when it exposes a vendor HID usage
+page. Add the PID and verified limits to the model table before treating it as
+supported. For controlled bring-up only, explicitly approve that exact PID:
+
+```sh
+sudo systemctl edit fangd
+# Add these two lines, substituting the PID reported by lsusb:
+# [Service]
+# Environment=FANGD_ALLOW_UNVERIFIED_PID=02c1
+sudo systemctl restart fangd
+```
+
+The opt-in applies conservative fan limits and the UI shows an “unverified”
+warning. Remove the override after adding a verified model profile.
 
 ## 1. Install and check the daemon
 

@@ -11,11 +11,16 @@ import {
   uiSettings,
   versionInfo
 } from './stores.js';
+import { createUiSettingsCommitter } from './ui-settings.js';
 
 export const inTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 let invoke = null;
+const uiSettingsCommitter = createUiSettingsCommitter(
+  { autostart: false, close_to_tray: true },
+  (settings) => uiSettings.set(settings)
+);
 
 export function initBridge() {
   if (inTauri) initTauri();
@@ -37,7 +42,7 @@ async function initTauri() {
     connected.set(up);
     versionInfo.set(await invoke('get_version_info'));
     if (up) status.set(await invoke('get_status'));
-    uiSettings.set(await invoke('get_ui_settings'));
+    uiSettingsCommitter.confirm(await invoke('get_ui_settings'));
     display.set(await invoke('get_display'));
     panel.set(await invoke('get_panel'));
   } catch (e) {
@@ -62,8 +67,12 @@ export async function setFan(fan) {
 }
 
 export async function saveUiSettings(next) {
-  uiSettings.set(next);
-  if (invoke) await invoke('set_ui_settings', { settings: next });
+  if (invoke) {
+    return uiSettingsCommitter.save(next, (settings) =>
+      invoke('set_ui_settings', { settings })
+    );
+  }
+  return uiSettingsCommitter.confirm(next);
 }
 
 export async function setGpuMode(gpuMode) {
@@ -419,7 +428,7 @@ function initSim() {
     daemon_api_version: 2,
     compatible: true
   });
-  uiSettings.set({ autostart: false, close_to_tray: true });
+  uiSettingsCommitter.confirm({ autostart: false, close_to_tray: true });
   display.set(sim.displayInfo);
   panel.set(sim.panelInfo);
   sim.push();

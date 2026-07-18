@@ -10,7 +10,7 @@
     {#if hint}<span class="hint">{hint}</span>{/if}
   </span>
   <input type="checkbox" bind:checked on:change />
-  <span class="pill"><span class="knob" /></span>
+  <span class="pill"><span class="knob"></span></span>
 </label>
 
 <style>

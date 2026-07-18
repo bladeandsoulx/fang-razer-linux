@@ -6,6 +6,7 @@
   import GpuDisplay from './screens/GpuDisplay.svelte';
   import Lighting from './screens/Lighting.svelte';
   import Changelog from './screens/Changelog.svelte';
+  import Support from './screens/Support.svelte';
   import Settings from './screens/Settings.svelte';
   import Disconnected from './screens/Disconnected.svelte';
   import { connected, status, versionInfo } from './lib/stores.js';
@@ -18,10 +19,11 @@
     { id: 'gpu', title: 'GPU & Display', icon: 'gpu', component: GpuDisplay },
     { id: 'lighting', title: 'Lighting', icon: 'light', component: Lighting },
     { id: 'changelog', title: 'Changelog', icon: 'history', component: Changelog },
+    { id: 'support', title: 'Support', icon: 'heart', component: Support },
     { id: 'settings', title: 'Settings', icon: 'settings', component: Settings }
   ];
 
-  // #dashboard / #performance / #fan / #settings deep-link the screens
+  // #dashboard / #performance / #fan / #support / #settings deep-link the screens
   let current =
     SCREENS.find((s) => s.id === location.hash.replace('#', '')) ?? SCREENS[0];
 
@@ -50,7 +52,7 @@
     </nav>
 
     <footer>
-      <span class="led" class:ok={$connected} />
+      <span class="led" class:ok={$connected}></span>
       <div class="who">
         <span class="model">{$status?.model ?? 'searching…'}</span>
         <span class="daemon mono">
