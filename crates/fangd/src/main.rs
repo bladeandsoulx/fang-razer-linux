@@ -48,10 +48,15 @@ fn parse_args() -> Args {
             "--tcp" => args.tcp = it.next(),
             "--socket" => args.socket = it.next().map(PathBuf::from),
             "--state" => args.state = it.next().map(PathBuf::from),
+            "--version" | "-V" => {
+                println!("fangd {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
             "--help" | "-h" => {
                 println!(
                     "fangd {} — Fang daemon for Razer Blade laptops\n\n\
-                     USAGE: fangd [--mock] [--tcp ADDR] [--socket PATH] [--state PATH]\n\n\
+                     USAGE: fangd [--version] [--mock] [--tcp ADDR] [--socket PATH] [--state PATH]\n\n\
+                     --version       print the daemon version and exit\n\
                      --mock          simulate hardware (also FANGD_MOCK=1)\n\
                      --restore-auto  restore EC automatic fan control and exit\n\
                      --tcp ADDR      mock-only loopback TCP instead of unix socket (dev)\n\

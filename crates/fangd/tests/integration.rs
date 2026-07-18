@@ -53,6 +53,43 @@ fn roundtrip(reader: &mut impl BufRead, writer: &mut impl Write, req: &str) -> s
 }
 
 #[test]
+fn version_flag_exits_without_creating_runtime_state() {
+    let bin = env!("CARGO_BIN_EXE_fangd");
+    let dir = std::env::temp_dir().join(format!("fangd-version-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let state = dir.join("state.json");
+    let socket = dir.join("fangd.sock");
+
+    let output = Command::new(bin)
+        .args(["--mock", "--state"])
+        .arg(&state)
+        .args(["--socket"])
+        .arg(&socket)
+        .arg("--version")
+        .output()
+        .expect("run fangd --version");
+
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!("fangd {}\n", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(
+        !state.exists(),
+        "version command created {}",
+        state.display()
+    );
+    assert!(
+        !socket.exists(),
+        "version command created {}",
+        socket.display()
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn daemon_end_to_end() {
     let dir = std::env::temp_dir().join(format!("fangd-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
