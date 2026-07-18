@@ -140,9 +140,11 @@ daemon binary, service unit, group-creation script, or elevated install hook.
 
 The installed package and release filename use the lowercase name `fang`.
 `rpmbuild`'s automatic dependency generator scans `/usr/bin/fang` and adds the
-required shared-library capabilities for GTK, WebKitGTK 4.1, Ayatana
-AppIndicator, and the other native runtime libraries. The spec must not disable
-automatic dependency generation.
+required shared-library capabilities for linked GTK, WebKitGTK 4.1, and other
+native runtime libraries. Fang's tray library loads AppIndicator dynamically,
+which is invisible to ELF scanning, so `fang.spec` additionally declares
+`Requires: libayatana-appindicator-gtk3`. The spec must not disable automatic
+dependency generation.
 
 Tauri's native RPM bundler is intentionally not used. In Tauri CLI 2.11.4 it
 passes every configured dependency string to `Dependency::any`, so strings
@@ -204,6 +206,8 @@ Two matrix jobs download the build artifact and run in clean `fedora:43` and
      contains no sysusers compatibility or custom `%pre` script;
    - `fang` contains the desktop binary, validated desktop entry, icons, and
      its `%license` payload;
+   - the desktop package explicitly requires
+     `libayatana-appindicator-gtk3` for the dynamically loaded tray backend;
    - the desktop package requires the expected lower and upper `fangd`
      bounds; and
    - a deliberately incompatible daemon version cannot satisfy those bounds.
