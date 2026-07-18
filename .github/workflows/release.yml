@@ -31,10 +31,96 @@ jobs:
         run: |
           npm ci
           npm run tauri build -- --bundles deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fang-debs
+          path: |
+            target/debian/*.deb
+            app/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  rpms:
+    name: build RPMs (Fedora 43)
+    runs-on: ubuntu-latest
+    container: fedora:43
+    steps:
+      - run: >
+          dnf install -y
+          git curl tar gzip gcc gcc-c++ make pkgconf-pkg-config systemd-devel
+          webkit2gtk4.1-devel gtk3-devel librsvg2-devel
+          libayatana-appindicator-gtk3-devel openssl-devel
+          rpm-build desktop-file-utils findutils
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            app/src-tauri
+      - run: packaging/rpm/build.sh target/rpm-dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fang-rpms
+          path: target/rpm-dist/*.rpm
+          if-no-files-found: error
+
+  rpm-test:
+    name: test RPMs (${{ matrix.fedora }})
+    needs: rpms
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: [43, 44]
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - run: >
+          dnf install -y
+          git tar gzip rpm-build systemd systemd-rpm-macros desktop-file-utils
+          python3 dbus-daemon xorg-x11-server-Xvfb xorg-x11-xauth
+          libayatana-appindicator-gtk3 findutils procps-ng
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-rpms
+          path: target/rpm-dist
+      - run: packaging/rpm/verify.sh target/rpm-dist
+
+  draft-release:
+    name: create four-package draft release
+    needs: [debs, rpm-test]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-debs
+          path: dist/deb
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-rpms
+          path: dist/rpm
+      - name: Verify release inventory
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          mapfile -t debs < <(find dist/deb -type f -name '*.deb' -print | sort)
+          mapfile -t rpms < <(find dist/rpm -type f -name '*.rpm' -print | sort)
+          test "${#debs[@]}" -eq 2
+          test "${#rpms[@]}" -eq 2
+          test "$(for package in "${debs[@]}"; do dpkg-deb -f "$package" Package; done | sort)" = $'fang\nfangd'
+          test "$(for package in "${rpms[@]}"; do rpm -qp --queryformat '%{NAME}\n' "$package"; done | sort)" = $'fang\nfangd'
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
-            target/debian/*.deb
-            app/src-tauri/target/release/bundle/deb/*.deb
+            dist/deb/*.deb
+            dist/rpm/*.rpm
