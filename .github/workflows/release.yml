@@ -31,12 +31,21 @@ jobs:
         run: |
           npm ci
           npm run tauri build -- --bundles deb
+      - name: Collect .deb packages
+        run: |
+          mkdir -p target/deb-dist
+          rm -f target/deb-dist/*.deb
+          mapfile -t daemon_debs < <(find target/debian -maxdepth 1 -type f -name '*.deb' -print | sort)
+          mapfile -t app_debs < <(find app/src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print | sort)
+          test "${#daemon_debs[@]}" -eq 1
+          test "${#app_debs[@]}" -eq 1
+          cp "${daemon_debs[@]}" "${app_debs[@]}" target/deb-dist/
+          mapfile -t debs < <(find target/deb-dist -maxdepth 1 -type f -name '*.deb' -print | sort)
+          test "${#debs[@]}" -eq 2
       - uses: actions/upload-artifact@v4
         with:
           name: fang-debs
-          path: |
-            target/debian/*.deb
-            app/src-tauri/target/release/bundle/deb/*.deb
+          path: target/deb-dist/*.deb
           if-no-files-found: error
 
   rpms:
