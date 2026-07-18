@@ -1,7 +1,7 @@
 # Fedora RPM support for Fang
 
 **Date:** 2026-07-18
-**Status:** Draft — approved in conversation; awaiting written-spec review
+**Status:** Draft — revision 2; awaiting written-spec approval
 
 ## Goal
 
@@ -21,8 +21,8 @@ on both Fedora versions before a release can be created.
 ### In scope
 
 - Fedora 43 and Fedora 44 on x86_64.
-- A custom RPM spec for `fangd`.
-- Tauri's native RPM bundler for the desktop application.
+- Custom RPM specs for `fangd` and the desktop application.
+- Tauri builds the desktop binary, while `rpmbuild` creates its RPM.
 - Fedora-native systemd and sysusers integration.
 - RPM build and install tests in GitHub Actions containers.
 - Two RPM assets alongside the existing two DEB assets in each GitHub release.
@@ -51,7 +51,9 @@ Add a focused RPM packaging directory:
 
 ```text
 packaging/rpm/
+├── fang.spec
 ├── fangd.spec
+├── fang.desktop
 └── fang.sysusers
 ```
 
@@ -66,10 +68,12 @@ The release workflow compiles `fangd` in a Fedora 43 container, and
 - the repository's `LICENSE` as an RPM `%license` file.
 
 The sysusers declaration creates the system group `fang`, which owns access to
-`/run/fangd.sock`. Packaging must use Fedora's systemd/sysusers RPM macros
-rather than a distribution-specific `groupadd` script. The spec declares the
-macro build requirements and uses Fedora's standard service lifecycle macros
-for install, upgrade, and removal:
+`/run/fangd.sock`. Fedora 43 and 44 use RPM's native processing of sysusers.d
+files shipped in a package payload. `fangd.spec` therefore contains no
+`%sysusers_create_compat`, custom `%pre`, `groupadd`, or equivalent group
+creation script. It declares `BuildRequires: systemd-rpm-macros` for the
+directory and service macros, ships the declarative file, and uses Fedora's
+standard service lifecycle macros for install, upgrade, and removal:
 
 - `%systemd_post fangd.service`
 - `%systemd_preun fangd.service`
@@ -94,13 +98,30 @@ to exit with status 2.
 
 ### `fang` desktop RPM
 
-Extend `app/src-tauri/tauri.conf.json` so Tauri builds both `deb` and `rpm`
-bundles. The RPM configuration declares a strict daemon dependency for the
-same compatible release line:
+Add `packaging/rpm/fang.spec`. The Fedora workflow runs Tauri with
+`npm run tauri build -- --no-bundle` to produce the release desktop binary and
+its embedded frontend, then uses `rpmbuild` to create the RPM. The existing
+Tauri DEB configuration and DEB build remain unchanged.
+
+The custom spec installs:
+
+- the desktop binary as `/usr/bin/fang`;
+- `packaging/rpm/fang.desktop` as
+  `%{_datadir}/applications/fang.desktop`;
+- the existing 32, 128, 256, and 512-pixel application icons in the matching
+  hicolor icon directories; and
+- the repository's `LICENSE` through `%license LICENSE`, producing a real
+  package payload under `%{_licensedir}/fang/`.
+
+The checked-in desktop entry is validated with `desktop-file-validate` during
+the RPM build and install tests.
+
+`fang.spec` declares the strict daemon dependency as native RPM requirements
+for the same compatible release line:
 
 ```text
-fangd >= <current version>
-fangd < <next minor version>
+Requires: fangd >= %{version}
+Requires: fangd < <next minor version>
 ```
 
 For example, desktop version `0.9.2` accepts `fangd >= 0.9.2` and
@@ -108,21 +129,26 @@ For example, desktop version `0.9.2` accepts `fangd >= 0.9.2` and
 dependency syntax. The desktop package remains unprivileged and contains no
 daemon binary, service unit, group-creation script, or elevated install hook.
 
-The installed desktop package name is `fang`. The release asset may retain the
-Tauri-generated filename casing, but CI identifies packages from RPM metadata,
-not from filename capitalization.
+The installed package and release filename use the lowercase name `fang`.
+`rpmbuild`'s automatic dependency generator scans `/usr/bin/fang` and adds the
+required shared-library capabilities for GTK, WebKitGTK 4.1, Ayatana
+AppIndicator, and the other native runtime libraries. The spec must not disable
+automatic dependency generation.
 
-The desktop RPM includes the project's GPL-2.0 license metadata and relies on
-Tauri/RPM's generated shared-library dependencies for GTK, WebKitGTK 4.1,
-Ayatana AppIndicator, and the other native runtime libraries.
+Tauri's native RPM bundler is intentionally not used. In Tauri CLI 2.11.4 it
+passes every configured dependency string to `Dependency::any`, so strings
+such as `fangd >= 0.9.2` become literal unversioned package names. Its RPM path
+also does not add `bundle.licenseFile` to the package payload. A custom spec is
+required for both the strict dependency range and the `%license` file.
 
 ### Version synchronization
 
-Extend `app/scripts/version.mjs` so `check` verifies both DEB and RPM daemon
-constraints, and `set VERSION` updates both formats together. The next-minor
-upper bound is calculated once from the application version. A version bump
-must fail CI if any Cargo, npm, Tauri, changelog, DEB dependency, or RPM
-dependency version is out of sync.
+Extend `app/scripts/version.mjs` so `check` verifies the `Version` field in both
+RPM specs and the lower and upper daemon constraints in `fang.spec`.
+`set VERSION` updates both specs together with the existing Cargo, npm, Tauri,
+and DEB version sources; `check` continues to include the changelog. The
+next-minor upper bound is calculated once from the application version. A
+version bump must fail CI if any version or package dependency is out of sync.
 
 ## CI design
 
@@ -142,10 +168,11 @@ the Rust stable toolchain, then:
 1. Runs the repository's version-sync check.
 2. Builds the `fangd` release binary.
 3. Builds the daemon RPM with `rpmbuild`.
-4. Runs `npm ci` and builds the desktop with
-   `npm run tauri build -- --bundles rpm`.
-5. Verifies that exactly one daemon RPM and one desktop RPM were produced.
-6. Uploads both binary RPMs as one workflow artifact for install tests.
+4. Runs `npm ci` and builds the desktop binary with
+   `npm run tauri build -- --no-bundle`.
+5. Builds the desktop RPM from `fang.spec` with `rpmbuild`.
+6. Verifies that exactly one daemon RPM and one desktop RPM were produced.
+7. Uploads both binary RPMs as one workflow artifact for install tests.
 
 Fedora 43 is the build baseline because binaries built against a newer glibc
 may not run on an older supported release. The same Fedora 43-built artifacts
@@ -162,9 +189,11 @@ Two matrix jobs download the build artifact and run in clean `fedora:43` and
    - version, release, architecture, license, and package ownership are
      correct;
    - `fangd` contains `/usr/bin/fangd`, `fangd.service`, the sysusers file,
-     and the license;
-   - `fang` contains the desktop binary, desktop entry, icons, and license
-     metadata;
+     and its `%license` payload;
+   - the daemon RPM exposes native sysusers metadata for the `fang` group and
+     contains no sysusers compatibility or custom `%pre` script;
+   - `fang` contains the desktop binary, validated desktop entry, icons, and
+     its `%license` payload;
    - the desktop package requires the expected lower and upper `fangd`
      bounds; and
    - a deliberately incompatible daemon version cannot satisfy those bounds.
@@ -232,14 +261,13 @@ Add a Fedora 43/44 section next to the existing Ubuntu/Debian instructions.
 Users download both RPMs from the same GitHub release and run:
 
 ```sh
-sudo dnf install ./fangd-*.rpm ./Fang-*.rpm
+sudo dnf install ./fangd-*.rpm ./fang-*.rpm
 sudo systemctl enable --now fangd
 sudo usermod -aG fang "$USER"
 ```
 
-If Tauri emits a lowercase desktop filename, the documentation uses the actual
-release filename instead of assuming `Fang-*.rpm`. Users must log out and back
-in after `usermod` before the desktop app can access `/run/fangd.sock`.
+Users must log out and back in after `usermod` before the desktop app can access
+`/run/fangd.sock`.
 
 The documentation also states:
 
@@ -304,8 +332,9 @@ This work is complete when:
 
 ## References
 
-- [Tauri RPM distribution guide](https://v2.tauri.app/distribute/rpm/)
+- [Tauri CLI 2.11.4 RPM dependency implementation](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle/linux/rpm.rs#L74-L77)
 - [GitHub Actions container jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container)
 - [Fedora Packaging Guidelines](https://docs.fedoraproject.org/en-US/packaging-guidelines/)
+- [Fedora RPM support for systemd sysusers.d](https://fedoraproject.org/wiki/Changes/RPMSuportForSystemdSysusers)
 - [Fedora WebKitGTK 4.1 packages](https://packages.fedoraproject.org/pkgs/webkitgtk/webkit2gtk4.1-devel/)
 - [Fedora 44 release schedule](https://fedorapeople.org/groups/schedule/f-44/f-44-key-tasks.html)
