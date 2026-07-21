@@ -216,5 +216,7 @@ with additional reference from [OpenRazer](https://openrazer.github.io/).
 If Fang is useful to you, please consider
 [supporting Razer-Control's author](https://www.paypal.com/donate/?hosted_button_id=H4SCC24R8KS4A).
 
+Assisted-by: OpenAI GPT-5.6 via Codex and Claude Fable 5 via CLI.
+
 Fang is not affiliated with or endorsed by Razer Inc. "Razer" and "Synapse"
 are trademarks of Razer Inc.
