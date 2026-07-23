@@ -246,6 +246,243 @@ download_file() {
   mv -- "$partial" "$destination"
 }
 
+parse_manifest() {
+  local manifest=$1
+  local line
+  local digest
+  local name
+  local expected
+  local line_count=0
+  local expected_names=(
+    install.sh
+    "$DEB_FANG"
+    "$DEB_FANGD"
+    "$RPM_FANG"
+    "$RPM_FANGD"
+  )
+  declare -A digests=()
+
+  while IFS= read -r line; do
+    ((line_count += 1))
+    if [[ $line =~ ^([0-9a-f]{64})\ \ ([^/]+)$ ]]; then
+      digest=${BASH_REMATCH[1]}
+      name=${BASH_REMATCH[2]}
+    else
+      fatal "Malformed checksum manifest line $line_count."
+    fi
+    [[ -z ${digests[$name]+present} ]] ||
+      fatal "Duplicate checksum manifest entry: $name"
+    case $name in
+      install.sh|"$DEB_FANG"|"$DEB_FANGD"|"$RPM_FANG"|"$RPM_FANGD") ;;
+      *) fatal "Unexpected checksum manifest entry: $name" ;;
+    esac
+    digests[$name]=$digest
+  done < "$manifest"
+
+  [[ $line_count == 5 ]] ||
+    fatal 'The checksum manifest must contain exactly five canonical entries.'
+  for expected in "${expected_names[@]}"; do
+    [[ -n ${digests[$expected]+present} ]] ||
+      fatal "Missing checksum manifest entry: $expected"
+  done
+
+  {
+    printf '%s  %s\n' "${digests[$SELECTED_FANG]}" "$SELECTED_FANG"
+    printf '%s  %s\n' "${digests[$SELECTED_FANGD]}" "$SELECTED_FANGD"
+  } > "$WORK_DIR/SELECTED_SHA256SUMS"
+}
+
+verify_checksums() {
+  parse_manifest "$WORK_DIR/SHA256SUMS"
+  if ! (
+    cd "$WORK_DIR"
+    sha256sum --check --strict SELECTED_SHA256SUMS
+  ); then
+    fatal 'Package checksum verification failed.'
+  fi
+}
+
+verify_deb_field() {
+  local file=$1
+  local field=$2
+  local expected=$3
+  local actual
+
+  actual=$(dpkg-deb -f "$file" "$field") ||
+    fatal "Could not read DEB metadata field $field from ${file##*/}."
+  [[ $actual == "$expected" ]] ||
+    fatal "Invalid package metadata in ${file##*/}: $field is '$actual', expected '$expected'."
+}
+
+verify_deb_metadata() {
+  local fang_file="$WORK_DIR/$DEB_FANG"
+  local fangd_file="$WORK_DIR/$DEB_FANGD"
+
+  verify_deb_field "$fang_file" Package fang
+  verify_deb_field "$fang_file" Version "$DEB_FANG_VERSION"
+  verify_deb_field "$fang_file" Architecture amd64
+  verify_deb_field "$fangd_file" Package fangd
+  verify_deb_field "$fangd_file" Version "$DEB_FANGD_VERSION"
+  verify_deb_field "$fangd_file" Architecture amd64
+}
+
+verify_rpm_file() {
+  local file=$1
+  local expected_name=$2
+  local output
+  local fields=()
+
+  output=$(rpm -qp --queryformat \
+    $'%{NAME}\n%{EPOCH}\n%{VERSION}\n%{RELEASE}\n%{ARCH}\n' "$file") ||
+    fatal "Could not read RPM package metadata from ${file##*/}."
+  mapfile -t fields <<< "$output"
+  [[ ${#fields[@]} == 5 ]] ||
+    fatal "Invalid package metadata field count in ${file##*/}."
+  [[ ${fields[0]} == "$expected_name" ]] ||
+    fatal "Invalid package metadata in ${file##*/}: Name is '${fields[0]}'."
+  [[ ${fields[1]} == '(none)' || ${fields[1]} == 0 ]] ||
+    fatal "Invalid package metadata in ${file##*/}: Epoch is '${fields[1]}'."
+  [[ ${fields[2]} == "$VERSION" ]] ||
+    fatal "Invalid package metadata in ${file##*/}: Version is '${fields[2]}'."
+  [[ ${fields[3]} == 1 ]] ||
+    fatal "Invalid package metadata in ${file##*/}: Release is '${fields[3]}'."
+  [[ ${fields[4]} == x86_64 ]] ||
+    fatal "Invalid package metadata in ${file##*/}: Architecture is '${fields[4]}'."
+}
+
+verify_rpm_metadata() {
+  verify_rpm_file "$WORK_DIR/$RPM_FANG" fang
+  verify_rpm_file "$WORK_DIR/$RPM_FANGD" fangd
+}
+
+deb_state() {
+  local package=$1
+  local selected=$2
+  local state_destination=$3
+  local version_destination=$4
+  local output
+  local status
+  local installed_version
+  local state
+
+  if ! output=$(dpkg-query -W -f='${Status}\t${Version}\n' "$package" 2>/dev/null); then
+    printf -v "$state_destination" '%s' absent
+    printf -v "$version_destination" '%s' '<absent>'
+    return
+  fi
+  IFS=$'\t' read -r status installed_version <<< "$output"
+  if [[ $status != 'install ok installed' ]]; then
+    printf -v "$state_destination" '%s' absent
+    printf -v "$version_destination" '%s' '<absent>'
+    return
+  fi
+  [[ -n $installed_version ]] ||
+    fatal "Installed DEB version is missing for $package."
+
+  if dpkg --compare-versions "$installed_version" eq "$selected"; then
+    state=equal
+  elif dpkg --compare-versions "$installed_version" lt "$selected"; then
+    state=older
+  elif dpkg --compare-versions "$installed_version" gt "$selected"; then
+    state=newer
+  else
+    fatal "Could not compare installed DEB version for $package."
+  fi
+  printf -v "$state_destination" '%s' "$state"
+  printf -v "$version_destination" '%s' "$installed_version"
+}
+
+normalize_rpm_evr() {
+  local evr=$1
+  local destination=$2
+
+  if [[ $evr == '(none):'* ]]; then
+    evr="0:${evr#'(none):'}"
+  fi
+  [[ $evr =~ ^[0-9]+:[A-Za-z0-9._+~%-]+-[A-Za-z0-9._+~%-]+$ ]] ||
+    fatal "Installed RPM returned an invalid EVR: $evr"
+  printf -v "$destination" '%s' "$evr"
+}
+
+rpm_state() {
+  local package=$1
+  local selected=$2
+  local state_destination=$3
+  local version_destination=$4
+  local output
+  local installed_evr
+  local comparison
+  local state
+  local records=()
+
+  if ! output=$(rpm -q --queryformat $'%{EPOCH}:%{VERSION}-%{RELEASE}\n' "$package" 2>/dev/null); then
+    printf -v "$state_destination" '%s' absent
+    printf -v "$version_destination" '%s' '<absent>'
+    return
+  fi
+  mapfile -t records <<< "$output"
+  [[ ${#records[@]} == 1 ]] ||
+    fatal "Installed RPM state is ambiguous for $package: ${#records[@]} records."
+  normalize_rpm_evr "${records[0]}" installed_evr
+
+  comparison=$(
+    FANG_RPM_LEFT=$installed_evr FANG_RPM_RIGHT=$selected \
+      rpm --eval '%{lua:print(rpm.vercmp(os.getenv("FANG_RPM_LEFT"), os.getenv("FANG_RPM_RIGHT")))}'
+  ) || fatal "Could not compare installed RPM version for $package."
+  [[ $comparison =~ ^-?[0-9]+$ ]] ||
+    fatal "RPM returned an invalid version comparison for $package."
+  if ((comparison == 0)); then
+    state=equal
+  elif ((comparison < 0)); then
+    state=older
+  else
+    state=newer
+  fi
+  printf -v "$state_destination" '%s' "$state"
+  printf -v "$version_destination" '%s' "$installed_evr"
+}
+
+decide_transaction() {
+  if [[ $FANG_STATE == newer ]]; then
+    fatal "Refusing downgrade: fang $FANG_INSTALLED is newer than selected $FANG_SELECTED_VERSION."
+  fi
+  if [[ $FANGD_STATE == newer ]]; then
+    fatal "Refusing downgrade: fangd $FANGD_INSTALLED is newer than selected $FANGD_SELECTED_VERSION."
+  fi
+  if [[ $FANG_STATE == equal && $FANGD_STATE == equal ]]; then
+    PACKAGE_TRANSACTION=0
+  else
+    PACKAGE_TRANSACTION=1
+  fi
+}
+
+classify_installed_packages() {
+  if [[ $PACKAGE_FAMILY == deb ]]; then
+    FANG_SELECTED_VERSION=$DEB_FANG_VERSION
+    FANGD_SELECTED_VERSION=$DEB_FANGD_VERSION
+    deb_state fang "$FANG_SELECTED_VERSION" FANG_STATE FANG_INSTALLED
+    deb_state fangd "$FANGD_SELECTED_VERSION" FANGD_STATE FANGD_INSTALLED
+  else
+    FANG_SELECTED_VERSION="0:${VERSION}-1"
+    FANGD_SELECTED_VERSION="0:${VERSION}-1"
+    rpm_state fang "$FANG_SELECTED_VERSION" FANG_STATE FANG_INSTALLED
+    rpm_state fangd "$FANGD_SELECTED_VERSION" FANGD_STATE FANGD_INSTALLED
+  fi
+  decide_transaction
+}
+
+install_selected_packages() {
+  if [[ $PACKAGE_TRANSACTION != 1 ]]; then
+    return 0
+  fi
+  sudo -v
+  if [[ $PACKAGE_FAMILY == deb ]]; then
+    sudo apt-get install "$WORK_DIR/$DEB_FANGD" "$WORK_DIR/$DEB_FANG"
+  else
+    sudo dnf install "$WORK_DIR/$RPM_FANGD" "$WORK_DIR/$RPM_FANG"
+  fi
+}
+
 main() {
 set -euo pipefail
 umask 077
@@ -255,6 +492,8 @@ readonly REPOSITORY='bladeandsoulx/fang-razer-linux'
 readonly RELEASE_BASE="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}"
 readonly DEB_FANG="Fang_${VERSION}_amd64.deb"
 readonly DEB_FANGD="fangd_${VERSION}-1_amd64.deb"
+readonly DEB_FANG_VERSION="$VERSION"
+readonly DEB_FANGD_VERSION="${VERSION}-1"
 readonly RPM_FANG="fang-${VERSION}-1.x86_64.rpm"
 readonly RPM_FANGD="fangd-${VERSION}-1.x86_64.rpm"
 
@@ -297,6 +536,21 @@ readonly RPM_FANGD="fangd-${VERSION}-1.x86_64.rpm"
   download_file "$RELEASE_BASE/$SELECTED_FANG" "$WORK_DIR/$SELECTED_FANG"
   download_file "$RELEASE_BASE/$SELECTED_FANGD" "$WORK_DIR/$SELECTED_FANGD"
   complete "Downloaded Fang $VERSION package pair"
+
+  verify_checksums
+  if [[ $PACKAGE_FAMILY == deb ]]; then
+    verify_deb_metadata
+  else
+    verify_rpm_metadata
+  fi
+  classify_installed_packages
+  complete 'Checksums and package metadata verified'
+  install_selected_packages
+  if [[ $PACKAGE_TRANSACTION == 1 ]]; then
+    complete "Installed Fang $VERSION"
+  else
+    complete "Fang $VERSION packages are already installed"
+  fi
 }
 
 main "$@"

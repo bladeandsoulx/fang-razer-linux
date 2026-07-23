@@ -5,10 +5,18 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const installer = path.join(root, 'install.sh');
 const version = JSON.parse(fs.readFileSync(path.join(root, 'app/package.json'), 'utf8')).version;
+const releaseNames = [
+  'install.sh',
+  `Fang_${version}_amd64.deb`,
+  `fangd_${version}-1_amd64.deb`,
+  `fang-${version}-1.x86_64.rpm`,
+  `fangd-${version}-1.x86_64.rpm`
+];
 
 function executable(file, text) {
   fs.writeFileSync(file, text, { mode: 0o755 });
@@ -20,17 +28,36 @@ function makeFixture({
   euid = '1000',
   curlFailure = '',
   curlSignal = '',
-  groups = 'home'
+  groups = 'home',
+  manifestTransform = (value) => value,
+  corruptAsset = '',
+  metadata = {},
+  installed = {}
 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fang-installer-test-'));
   const bin = path.join(dir, 'bin');
   const temporary = path.join(dir, 'tmp');
+  const assets = path.join(dir, 'assets');
   const log = path.join(dir, 'commands.log');
   const releaseFile = path.join(dir, 'os-release');
   fs.mkdirSync(bin, { mode: 0o700 });
   fs.mkdirSync(temporary, { mode: 0o700 });
+  fs.mkdirSync(assets, { mode: 0o700 });
   fs.writeFileSync(log, '');
   fs.writeFileSync(releaseFile, osRelease);
+  for (const name of releaseNames) {
+    fs.writeFileSync(path.join(assets, name), `fixture:${name}\n`);
+  }
+  const manifest = releaseNames
+    .map((name) => {
+      const digest = createHash('sha256').update(fs.readFileSync(path.join(assets, name))).digest('hex');
+      return `${digest}  ${name}\n`;
+    })
+    .join('');
+  fs.writeFileSync(path.join(assets, 'SHA256SUMS'), manifestTransform(manifest));
+  if (corruptAsset) {
+    fs.appendFileSync(path.join(assets, corruptAsset), 'corrupt\n');
+  }
 
   executable(
     path.join(bin, 'uname'),
@@ -85,8 +112,7 @@ if [[ "$name" == "\${FANG_TEST_CURL_FAILURE}" ]]; then
   exit 22
 fi
 case "$name" in
-  SHA256SUMS) printf '%064d  install.sh\\n' 0 > "$output" ;;
-  *) printf '%s\\n' "$name" > "$output" ;;
+  *) cp "\${FANG_TEST_ASSET_DIR}/$name" "$output" ;;
 esac
 `
   );
@@ -94,16 +120,83 @@ esac
     path.join(bin, 'sudo'),
     `#!/usr/bin/env bash\nprintf 'sudo %s\\n' "$*" >> "\${FANG_TEST_LOG}"\nexit 0\n`
   );
-  for (const command of [
-    'systemctl',
-    'dpkg',
-    'dpkg-deb',
-    'dpkg-query',
-    'apt-get',
-    'rpm',
-    'dnf',
-    'usermod'
-  ]) {
+  executable(
+    path.join(bin, 'dpkg-deb'),
+    `#!/usr/bin/env bash
+file="$2"
+field="$3"
+case "\${file##*/}:$field" in
+  Fang_*:Package) printf '%s\\n' "\${FANG_TEST_DEB_FANG_PACKAGE}" ;;
+  Fang_*:Version) printf '%s\\n' "\${FANG_TEST_DEB_FANG_VERSION}" ;;
+  Fang_*:Architecture) printf '%s\\n' "\${FANG_TEST_DEB_FANG_ARCH}" ;;
+  fangd_*:Package) printf '%s\\n' "\${FANG_TEST_DEB_FANGD_PACKAGE}" ;;
+  fangd_*:Version) printf '%s\\n' "\${FANG_TEST_DEB_FANGD_VERSION}" ;;
+  fangd_*:Architecture) printf '%s\\n' "\${FANG_TEST_DEB_FANGD_ARCH}" ;;
+  *) exit 2 ;;
+esac
+`
+  );
+  executable(
+    path.join(bin, 'dpkg-query'),
+    `#!/usr/bin/env bash
+package="\${@: -1}"
+case "$package" in
+  fang) value="\${FANG_TEST_INSTALLED_FANG}" ;;
+  fangd) value="\${FANG_TEST_INSTALLED_FANGD}" ;;
+  *) exit 2 ;;
+esac
+[[ -n "$value" ]] || exit 1
+if [[ "$value" == residual:* ]]; then
+  printf 'config-files\\t%s\\n' "\${value#residual:}"
+else
+  printf 'install ok installed\\t%s\\n' "$value"
+fi
+`
+  );
+  executable(
+    path.join(bin, 'rpm'),
+    `#!/usr/bin/env bash
+if [[ "$1" == "-qp" ]]; then
+  file="\${@: -1}"
+  case "\${file##*/}" in
+    fang-*) printf '%s\\n%s\\n%s\\n%s\\n%s\\n' \
+      "\${FANG_TEST_RPM_FANG_NAME}" "\${FANG_TEST_RPM_FANG_EPOCH}" \
+      "\${FANG_TEST_RPM_FANG_VERSION}" "\${FANG_TEST_RPM_FANG_RELEASE}" \
+      "\${FANG_TEST_RPM_FANG_ARCH}" ;;
+    fangd-*) printf '%s\\n%s\\n%s\\n%s\\n%s\\n' \
+      "\${FANG_TEST_RPM_FANGD_NAME}" "\${FANG_TEST_RPM_FANGD_EPOCH}" \
+      "\${FANG_TEST_RPM_FANGD_VERSION}" "\${FANG_TEST_RPM_FANGD_RELEASE}" \
+      "\${FANG_TEST_RPM_FANGD_ARCH}" ;;
+    *) exit 2 ;;
+  esac
+elif [[ "$1" == "-q" ]]; then
+  package="\${@: -1}"
+  case "$package" in
+    fang) value="\${FANG_TEST_INSTALLED_FANG}" ;;
+    fangd) value="\${FANG_TEST_INSTALLED_FANGD}" ;;
+    *) exit 2 ;;
+  esac
+  [[ -n "$value" ]] || exit 1
+  printf '%s\\n' "$value"
+elif [[ "$1" == "--eval" ]]; then
+  printf 'rpm-vercmp %s %s\\n' "\${FANG_RPM_LEFT}" "\${FANG_RPM_RIGHT}" >> "\${FANG_TEST_LOG}"
+  if [[ "\${FANG_RPM_LEFT}" == "\${FANG_RPM_RIGHT}" ]]; then
+    printf '0\\n'
+  else
+    case "\${FANG_RPM_LEFT}:\${FANG_RPM_RIGHT}" in
+      0:0.9.3-1:0:0.9.4-1) printf '%s\\n' -1 ;;
+      0:0.9.4-1:0:0.9.3-1) printf '%s\\n' 1 ;;
+      1:0.9.3-1:0:0.9.4-1) printf '%s\\n' 1 ;;
+      0:0.9.4-2:0:0.9.4-1) printf '%s\\n' 1 ;;
+      *) exit 2 ;;
+    esac
+  fi
+else
+  exit 2
+fi
+`
+  );
+  for (const command of ['systemctl', 'apt-get', 'dnf', 'usermod']) {
     executable(path.join(bin, command), '#!/usr/bin/env bash\nexit 0\n');
   }
 
@@ -116,13 +209,32 @@ esac
     FANG_TEST_ARCH: arch,
     FANG_TEST_CURL_FAILURE: curlFailure,
     FANG_TEST_CURL_SIGNAL: curlSignal,
+    FANG_TEST_ASSET_DIR: assets,
     FANG_TEST_GROUPS: groups,
     FANG_TEST_HOME: path.join(dir, 'home'),
     FANG_TEST_LOG: log,
     HOME: path.join(dir, 'untrusted-home'),
     USER: 'untrusted-user',
     SUDO_USER: 'untrusted-sudo-user',
-    NO_COLOR: '1'
+    NO_COLOR: '1',
+    FANG_TEST_DEB_FANG_PACKAGE: metadata.debFangPackage ?? 'fang',
+    FANG_TEST_DEB_FANG_VERSION: metadata.debFangVersion ?? version,
+    FANG_TEST_DEB_FANG_ARCH: metadata.debFangArch ?? 'amd64',
+    FANG_TEST_DEB_FANGD_PACKAGE: metadata.debFangdPackage ?? 'fangd',
+    FANG_TEST_DEB_FANGD_VERSION: metadata.debFangdVersion ?? `${version}-1`,
+    FANG_TEST_DEB_FANGD_ARCH: metadata.debFangdArch ?? 'amd64',
+    FANG_TEST_RPM_FANG_NAME: metadata.rpmFangName ?? 'fang',
+    FANG_TEST_RPM_FANG_EPOCH: metadata.rpmFangEpoch ?? '(none)',
+    FANG_TEST_RPM_FANG_VERSION: metadata.rpmFangVersion ?? version,
+    FANG_TEST_RPM_FANG_RELEASE: metadata.rpmFangRelease ?? '1',
+    FANG_TEST_RPM_FANG_ARCH: metadata.rpmFangArch ?? 'x86_64',
+    FANG_TEST_RPM_FANGD_NAME: metadata.rpmFangdName ?? 'fangd',
+    FANG_TEST_RPM_FANGD_EPOCH: metadata.rpmFangdEpoch ?? '0',
+    FANG_TEST_RPM_FANGD_VERSION: metadata.rpmFangdVersion ?? version,
+    FANG_TEST_RPM_FANGD_RELEASE: metadata.rpmFangdRelease ?? '1',
+    FANG_TEST_RPM_FANGD_ARCH: metadata.rpmFangdArch ?? 'x86_64',
+    FANG_TEST_INSTALLED_FANG: installed.fang ?? '',
+    FANG_TEST_INSTALLED_FANGD: installed.fangd ?? ''
   };
   return {
     dir,
@@ -249,6 +361,184 @@ test('downloads only the selected exact pinned package pair', () => {
   assert.match(commands, new RegExp(`/v${version}/fangd_${version}-1_amd64\\.deb`));
   assert.doesNotMatch(commands, /\.rpm/);
   fixture.cleanup();
+});
+
+test('rejects malformed checksum manifests before sudo', () => {
+  const transformations = [
+    (value) => value.split('\n').slice(1).join('\n'),
+    (value) => `${value}${value.split('\n')[0]}\n`,
+    (value) => value.replace(/^[a-f0-9]{64}/, 'BAD'),
+    (value) => value.replace('install.sh', '../install.sh'),
+    (value) => `${value}${'b'.repeat(64)}  seventh.asset\n`,
+    (value) => value.trimEnd()
+  ];
+  for (const manifestTransform of transformations) {
+    const fixture = makeFixture({
+      osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+      manifestTransform
+    });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /checksum manifest/i);
+    assert.doesNotMatch(fixture.commands(), /^sudo /m);
+    fixture.cleanup();
+  }
+});
+
+test('rejects a wrong checksum for every selected package before sudo', () => {
+  for (const [osRelease, names] of [
+    [
+      'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+      [`Fang_${version}_amd64.deb`, `fangd_${version}-1_amd64.deb`]
+    ],
+    [
+      'ID=fedora\nVERSION_ID="44"\nPLATFORM_ID="platform:f44"\n',
+      [`fang-${version}-1.x86_64.rpm`, `fangd-${version}-1.x86_64.rpm`]
+    ]
+  ]) {
+    for (const corruptAsset of names) {
+      const fixture = makeFixture({ osRelease, corruptAsset });
+      const result = fixture.run();
+      assert.notEqual(result.status, 0, corruptAsset);
+      assert.match(result.stderr + result.stdout, /checksum/i);
+      assert.doesNotMatch(fixture.commands(), /^sudo /m);
+      fixture.cleanup();
+    }
+  }
+});
+
+test('rejects every wrong DEB metadata field before sudo', () => {
+  const cases = [
+    { debFangPackage: 'other' },
+    { debFangVersion: `${version}-1` },
+    { debFangArch: 'arm64' },
+    { debFangdPackage: 'otherd' },
+    { debFangdVersion: version },
+    { debFangdArch: 'arm64' }
+  ];
+  for (const metadata of cases) {
+    const fixture = makeFixture({
+      osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+      metadata
+    });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0, JSON.stringify(metadata));
+    assert.match(result.stderr, /metadata/i);
+    assert.doesNotMatch(fixture.commands(), /^sudo /m);
+    fixture.cleanup();
+  }
+});
+
+test('rejects every wrong RPM metadata field before sudo', () => {
+  const cases = [
+    { rpmFangName: 'other' },
+    { rpmFangEpoch: '1' },
+    { rpmFangVersion: '0.9.3' },
+    { rpmFangRelease: '2' },
+    { rpmFangArch: 'aarch64' },
+    { rpmFangdName: 'otherd' },
+    { rpmFangdEpoch: '1' },
+    { rpmFangdVersion: '0.9.3' },
+    { rpmFangdRelease: '2' },
+    { rpmFangdArch: 'aarch64' }
+  ];
+  for (const metadata of cases) {
+    const fixture = makeFixture({
+      osRelease: 'ID=fedora\nVERSION_ID="44"\nPLATFORM_ID="platform:f44"\n',
+      metadata
+    });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0, JSON.stringify(metadata));
+    assert.match(result.stderr, /metadata/i);
+    assert.doesNotMatch(fixture.commands(), /^sudo /m);
+    fixture.cleanup();
+  }
+});
+
+test('DEB installed-version policy rejects downgrades and keeps one pair transaction', () => {
+  const osRelease = 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n';
+  for (const installed of [
+    { fang: '', fangd: '' },
+    { fang: '0.9.3', fangd: `${version}-1` },
+    { fang: version, fangd: '0.9.3-1' },
+    { fang: `residual:${version}`, fangd: `residual:${version}-1` }
+  ]) {
+    const fixture = makeFixture({ osRelease, installed });
+    const result = fixture.run();
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(
+      fixture.commands(),
+      new RegExp(
+        `^sudo apt-get install .*${path.sep}fangd_${version}-1_amd64\\.deb .*${path.sep}Fang_${version}_amd64\\.deb$`,
+        'm'
+      )
+    );
+    fixture.cleanup();
+  }
+
+  const equal = makeFixture({
+    osRelease,
+    installed: { fang: version, fangd: `${version}-1` }
+  });
+  const equalResult = equal.run();
+  assert.equal(equalResult.status, 0, equalResult.stdout + equalResult.stderr);
+  assert.doesNotMatch(equal.commands(), /^sudo (?:apt-get|dnf) /m);
+  equal.cleanup();
+
+  for (const installed of [
+    { fang: '0.9.5', fangd: '' },
+    { fang: '', fangd: `${version}-2` },
+    { fang: '1:0.9.3-1', fangd: `${version}-1` }
+  ]) {
+    const fixture = makeFixture({ osRelease, installed });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /refusing downgrade/i);
+    assert.doesNotMatch(fixture.commands(), /^sudo /m);
+    fixture.cleanup();
+  }
+});
+
+test('RPM installed-version policy uses EVR and rejects ambiguous records', () => {
+  const osRelease = 'ID=fedora\nVERSION_ID="44"\nPLATFORM_ID="platform:f44"\n';
+  for (const installed of [
+    { fang: '', fangd: '' },
+    { fang: '0:0.9.3-1', fangd: `0:${version}-1` },
+    { fang: `0:${version}-1`, fangd: '0:0.9.3-1' }
+  ]) {
+    const fixture = makeFixture({ osRelease, installed });
+    const result = fixture.run();
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(
+      fixture.commands(),
+      new RegExp(
+        `^sudo dnf install .*${path.sep}fangd-${version}-1\\.x86_64\\.rpm .*${path.sep}fang-${version}-1\\.x86_64\\.rpm$`,
+        'm'
+      )
+    );
+    fixture.cleanup();
+  }
+
+  const equal = makeFixture({
+    osRelease,
+    installed: { fang: `0:${version}-1`, fangd: `0:${version}-1` }
+  });
+  const equalResult = equal.run();
+  assert.equal(equalResult.status, 0, equalResult.stdout + equalResult.stderr);
+  assert.doesNotMatch(equal.commands(), /^sudo (?:apt-get|dnf) /m);
+  equal.cleanup();
+
+  for (const installed of [
+    { fang: '1:0.9.3-1', fangd: '' },
+    { fang: '', fangd: `0:${version}-2` },
+    { fang: `0:${version}-1\n0:${version}-1`, fangd: '' }
+  ]) {
+    const fixture = makeFixture({ osRelease, installed });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(fixture.commands(), /^sudo /m);
+    fixture.cleanup();
+  }
 });
 
 test('download failure removes partial and temporary files', () => {
