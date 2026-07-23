@@ -412,10 +412,10 @@ v0.9 release line.
 Run:
 
 ```bash
-dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg '/usr/bin/fang$'
-dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg '/usr/share/applications/(Fang|fang)\\.desktop$'
-dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg '/usr/bin/fangd$'
-dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg '/lib/systemd/system/fangd\\.service$'
+dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg 'usr/bin/fang$'
+dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg 'usr/share/applications/(Fang|fang)\\.desktop$'
+dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg 'usr/bin/fangd$'
+dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg 'lib/systemd/system/fangd\\.service$'
 ```
 
 Expected: each command prints exactly the matching archive entry.
