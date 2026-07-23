@@ -153,6 +153,11 @@ test('documentation exposes release, review, integrity, manual, and source insta
 
   assert.equal(fs.existsSync(path.join(repositoryRoot, 'packaging/install.sh')), false);
   assert.ok(fs.statSync(sourceInstaller).mode & 0o111);
+  assert.match(readme, /## Install in one command/);
+  assert.match(
+    readme,
+    /1\. Open Terminal\..*2\. Paste the command below and press Enter\..*3\. Open Fang from your app menu/s
+  );
   assert.match(
     readme,
     /curl -fsSL https:\/\/github\.com\/bladeandsoulx\/fang-razer-linux\/releases\/latest\/download\/install\.sh \| bash/

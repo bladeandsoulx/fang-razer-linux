@@ -87,19 +87,25 @@ project. No kernel driver (DKMS) needed.
 The privileged daemon (`fangd`) owns the hardware; the desktop app is an
 unprivileged client (socket access via the `fang` group).
 
-## Install
+## Install in one command
 
-Run the release installer as your desktop user, without `sudo`:
+1. Open Terminal.
+2. Paste the command below and press Enter.
 
-```sh
-curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
-```
+   ```sh
+   curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
+   ```
+
+3. Open Fang from your app menu when installation finishes.
+
+Run the command as your regular desktop user, without `sudo`. Enter your
+password only when the installer asks. If it says group access was added, log
+out and back in once before opening Fang.
 
 The installer selects the matching package pair, downloads and validates both
 packages before asking for sudo, installs or upgrades the app and daemon
 together, enables `fangd`, and adds your captured desktop user to the `fang`
-group when needed. It refuses downgrades. Log out and back in only if it says
-group membership was newly added.
+group when needed. It refuses downgrades.
 
 Release-tested x86_64 bases are Ubuntu 22.04 and Ubuntu 24.04, Debian 12 and
 Debian 13, plus Fedora 43 and Fedora 44. Zorin, Linux Mint, and Pop!_OS are
