@@ -56,16 +56,20 @@ function commandFields(command, args) {
   return execFileSync(command, args, { encoding: 'utf8' }).trimEnd().split('\n');
 }
 
-function inspectDebDefault(file) {
-  const [name, version, arch] = commandFields('dpkg-deb', [
-    '-f',
-    file,
-    'Package',
-    'Version',
-    'Architecture'
-  ]);
-  return { name, version, arch };
+function commandValue(command, args) {
+  return execFileSync(command, args, { encoding: 'utf8' }).trimEnd();
 }
+
+export function inspectDeb(file, runCommand = commandValue) {
+  const field = (name) => runCommand('dpkg-deb', ['-f', file, name]);
+  return {
+    name: field('Package'),
+    version: field('Version'),
+    arch: field('Architecture')
+  };
+}
+
+const inspectDebDefault = inspectDeb;
 
 function inspectRpmDefault(file) {
   const [name, epoch, version, release, arch] = commandFields('rpm', [

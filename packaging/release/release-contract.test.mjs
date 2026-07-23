@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import {
   checksumNames,
+  inspectDeb,
   releaseNames,
   stageRelease,
   validateManifest
@@ -41,6 +42,27 @@ test('manifest rejects missing, duplicate, malformed, path, and extra entries', 
   ]) {
     assert.throws(() => validateManifest(malformed, expected));
   }
+});
+
+test('DEB metadata inspection queries every field independently', () => {
+  const calls = [];
+  const values = new Map([
+    ['Package', 'fang'],
+    ['Version', '0.9.4'],
+    ['Architecture', 'amd64']
+  ]);
+
+  const metadata = inspectDeb('Fang_0.9.4_amd64.deb', (command, args) => {
+    calls.push([command, args]);
+    return values.get(args.at(-1));
+  });
+
+  assert.deepEqual(metadata, { name: 'fang', version: '0.9.4', arch: 'amd64' });
+  assert.deepEqual(calls, [
+    ['dpkg-deb', ['-f', 'Fang_0.9.4_amd64.deb', 'Package']],
+    ['dpkg-deb', ['-f', 'Fang_0.9.4_amd64.deb', 'Version']],
+    ['dpkg-deb', ['-f', 'Fang_0.9.4_amd64.deb', 'Architecture']]
+  ]);
 });
 
 test('stageRelease creates a deterministic six-asset directory', () => {
