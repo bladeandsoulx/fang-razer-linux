@@ -5,7 +5,7 @@ members = ["crates/fang-protocol", "crates/fangd"]
 exclude = ["app/src-tauri"]
 
 [workspace.package]
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 license = "GPL-2.0"
 repository = "https://github.com/bladeandsoulx/fang-razer-linux"

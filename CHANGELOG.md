@@ -4,6 +4,26 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.4] — 2026-07-23 — Immutable release installer
+
+### Added
+
+- A release-locked one-command installer for supported x86_64 Ubuntu, Debian,
+  Fedora, and explicitly identified compatible-family distributions.
+- Pre-elevation checksum, package metadata, installed-version, and downgrade
+  validation for the matching desktop-app and daemon package pair.
+- An inspect-first installation path and clean-container DEB lifecycle gates
+  for every declared Ubuntu and Debian base.
+- The Support screen now identifies BNB Smart Chain (BEP20) and Ethereum
+  (ERC20) as accepted networks for USDT donations.
+
+### Changed
+
+- Releases are assembled as an exact six-asset draft, validated remotely,
+  published once, and required to become immutable before being advertised.
+- The source-build helper is named `packaging/install-from-source.sh`, leaving
+  the repository-root `install.sh` for the release installer.
+
 ## [0.9.3] — 2026-07-18 — Fedora RPM support
 
 ### Added
@@ -303,6 +323,7 @@ All notable changes to Fang are documented here. The format is based on
 - Privileged `fangd` daemon + unprivileged Tauri/Svelte app over a Unix socket;
   settings persist and re-apply after reboot and suspend/resume.
 
+[0.9.4]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.4
 [0.9.3]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.3
 [0.9.2]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.2
 [0.9.1]: https://github.com/bladeandsoulx/fang-razer-linux/releases/tag/v0.9.1

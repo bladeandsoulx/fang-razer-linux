@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const fixtureVersion = JSON.parse(fs.readFileSync(path.join(root, 'app/package.json'), 'utf8')).version;
 const files = [
   'Cargo.toml',
   'Cargo.lock',
@@ -28,6 +29,10 @@ function fixture() {
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(root, name), destination);
   }
+  fs.writeFileSync(
+    path.join(dir, 'install.sh'),
+    `#!/usr/bin/env bash\nreadonly VERSION='${fixtureVersion}'\nreadonly RELEASE_TAG='v${fixtureVersion}'\n`
+  );
   return dir;
 }
 
@@ -100,6 +105,22 @@ test('set updates both RPM versions and the next-minor upper bound', () => {
     fs.readFileSync(path.join(dir, 'packaging/rpm/fang.spec'), 'utf8'),
     /^%global fangd_upper 0\.11\.0$/m
   );
+  const installer = fs.readFileSync(path.join(dir, 'install.sh'), 'utf8');
+  assert.match(installer, /^readonly VERSION='0\.10\.0'$/m);
+  assert.match(installer, /^readonly RELEASE_TAG='v0\.10\.0'$/m);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('check rejects stale release-installer identity', () => {
+  const dir = fixture();
+  const installer = path.join(dir, 'install.sh');
+  fs.writeFileSync(
+    installer,
+    fs.readFileSync(installer, 'utf8').replace(`VERSION='${fixtureVersion}'`, "VERSION='9.8.7'")
+  );
+  const result = run(dir, 'check');
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stderr, /release installer|synchronized/i);
   fs.rmSync(dir, { recursive: true });
 });
 

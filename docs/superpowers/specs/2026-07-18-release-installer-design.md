@@ -1,7 +1,7 @@
 # Fang release installer and immutable publication
 
 **Date:** 2026-07-18
-**Status:** Draft — approved direction; awaiting written-spec approval
+**Status:** Approved
 
 ## Goal
 

@@ -88,6 +88,7 @@ function currentVersions() {
   const packageLock = JSON.parse(read('app/package-lock.json'));
   const tauri = JSON.parse(read('app/src-tauri/tauri.conf.json'));
   const changelog = read('CHANGELOG.md');
+  const installer = read('install.sh');
   const fangRpm = read('packaging/rpm/fang.spec');
   const fangdRpm = read('packaging/rpm/fangd.spec');
   return [
@@ -103,6 +104,7 @@ function currentVersions() {
     ['tauri.conf.json', tauri.version],
     ['fang RPM spec', rpmField(fangRpm, 'Version')],
     ['fangd RPM spec', rpmField(fangdRpm, 'Version')],
+    ['release installer', capture('release installer version', installer, /^readonly VERSION='([^']+)'$/m)],
     ['CHANGELOG.md', capture('latest changelog release', changelog, /^## \[(\d+\.\d+\.\d+)\]/m)]
   ];
 }
@@ -123,6 +125,13 @@ function check() {
   const [major, minor] = expected.split('.').map(Number);
   const upper = major + '.' + (minor + 1) + '.0';
   const fangRpm = read('packaging/rpm/fang.spec');
+  const installer = read('install.sh');
+  if (
+    capture('release installer tag', installer, /^readonly RELEASE_TAG='([^']+)'$/m) !==
+    'v' + expected
+  ) {
+    throw new Error('release installer tag is not synchronized');
+  }
   if (
     !/^Requires:\s*fangd >= %\{version\}\s*$/m.test(fangRpm) ||
     !/^Requires:\s*fangd < %\{fangd_upper\}\s*$/m.test(fangRpm) ||
@@ -195,6 +204,21 @@ function setVersion(version) {
     }
     write(name, text);
   }
+
+  text = read('install.sh');
+  text = replaceRequired(
+    'release installer version',
+    text,
+    /^(readonly VERSION=')[^']+(')$/m,
+    '$1' + version + '$2'
+  );
+  text = replaceRequired(
+    'release installer tag',
+    text,
+    /^(readonly RELEASE_TAG='v)[^']+(')$/m,
+    '$1' + version + '$2'
+  );
+  write('install.sh', text);
 
   console.log('Updated manifests and lockfiles to ' + version + '.');
   console.log('Update CHANGELOG.md, then run this script with check.');
