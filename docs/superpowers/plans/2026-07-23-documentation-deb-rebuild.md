@@ -378,10 +378,12 @@ Run:
 
 ```bash
 mkdir -p target/deb-dist
-find target/deb-dist -maxdepth 1 -type f -name '*.deb' -delete
+find target/deb-dist -mindepth 1 -maxdepth 1 -delete
 cp target/debian/fangd_0.9.4-1_amd64.deb target/deb-dist/
 cp app/src-tauri/target/release/bundle/deb/Fang_0.9.4_amd64.deb target/deb-dist/
-test "$(find target/deb-dist -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 2
+test "$(find target/deb-dist -mindepth 1 -maxdepth 1 | wc -l)" -eq 2
+test -f target/deb-dist/Fang_0.9.4_amd64.deb
+test -f target/deb-dist/fangd_0.9.4-1_amd64.deb
 ```
 
 Expected: `target/deb-dist/` contains exactly the requested package pair.
@@ -412,10 +414,10 @@ v0.9 release line.
 Run:
 
 ```bash
-dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg 'usr/bin/fang$'
-dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg 'usr/share/applications/(Fang|fang)\\.desktop$'
-dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg 'usr/bin/fangd$'
-dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg 'lib/systemd/system/fangd\\.service$'
+dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg '[[:space:]](?:\./)?usr/bin/fang$'
+dpkg-deb -c target/deb-dist/Fang_0.9.4_amd64.deb | rg '[[:space:]](?:\./)?usr/share/applications/(Fang|fang)\\.desktop$'
+dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg '[[:space:]](?:\./)?usr/bin/fangd$'
+dpkg-deb -c target/deb-dist/fangd_0.9.4-1_amd64.deb | rg '[[:space:]](?:\./)?usr/lib/systemd/system/fangd\\.service$'
 ```
 
 Expected: each command prints exactly the matching archive entry.
