@@ -138,9 +138,9 @@ main() {
       -H 'X-GitHub-Api-Version: 2026-03-10' \
       -f "tag_name=$TAG" \
       -f "target_commitish=$GITHUB_SHA" \
-      -f draft=true \
-      -f prerelease=false \
-      -f generate_release_notes=true \
+      -F draft=true \
+      -F prerelease=false \
+      -F generate_release_notes=true \
       --jq '.id' \
       "$API/releases"
   ) || fatal 'could not create the release draft'
@@ -164,8 +164,8 @@ main() {
     --method PATCH \
     -H 'Accept: application/vnd.github+json' \
     -H 'X-GitHub-Api-Version: 2026-03-10' \
-    -f draft=false \
-    -f prerelease=false \
+    -F draft=false \
+    -F prerelease=false \
     -f make_latest=true \
     "$API/releases/$release_id" > "$PUBLICATION_TEMPORARY/published-response.json"
 

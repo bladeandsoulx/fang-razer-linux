@@ -11,6 +11,8 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REAL_USER="${SUDO_USER:-root}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$REPO_ROOT/Cargo.toml" | head -n 1)"
+[[ -n "$VERSION" ]]
 
 # Run a command as the invoking user with their Rust toolchain on PATH.
 # rustup installs cargo under ~/.cargo/bin, which sudo's secure_path drops —
@@ -42,7 +44,8 @@ if ! run_user sh -c 'command -v cargo-deb >/dev/null'; then
     run_user cargo install cargo-deb --locked
 fi
 run_user cargo deb -p fangd
-FANGD_DEB="$(ls -t target/debian/*.deb | head -1)"
+FANGD_DEB="target/debian/fangd_${VERSION}-1_amd64.deb"
+[[ -f "$FANGD_DEB" ]]
 echo "==> installing $FANGD_DEB"
 # The package installs the binary + unit, creates the 'fang' group, and enables
 # and starts the service — see the cargo-deb metadata in crates/fangd/Cargo.toml.
@@ -54,7 +57,8 @@ echo "==> building the Fang app (Tauri)"
 cd "$REPO_ROOT/app"
 run_user npm install
 run_user npm run tauri build
-DEB="$(ls -t src-tauri/target/release/bundle/deb/*.deb | head -1)"
+DEB="src-tauri/target/release/bundle/deb/Fang_${VERSION}_amd64.deb"
+[[ -f "$DEB" ]]
 echo "==> installing $DEB"
 apt-get install -y "$DEB"
 

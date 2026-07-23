@@ -58,7 +58,7 @@ jobs:
         working-directory: app
         run: |
           npm ci
-          npm run tauri build -- --bundles deb
+          npm run tauri -- build --bundles deb
       - name: Collect .deb packages
         run: |
           mkdir -p target/deb-dist

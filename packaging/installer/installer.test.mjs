@@ -25,7 +25,6 @@ function executable(file, text) {
 function makeFixture({
   osRelease,
   arch = 'x86_64',
-  euid = '1000',
   curlFailure = '',
   curlSignal = '',
   groups = 'home',
@@ -237,7 +236,6 @@ esac
     PATH: `${bin}:/usr/bin:/bin`,
     TMPDIR: temporary,
     FANG_INSTALLER_TESTING: '1',
-    FANG_INSTALLER_TEST_EUID: euid,
     FANG_OS_RELEASE_FILE: releaseFile,
     FANG_TEST_ARCH: arch,
     FANG_TEST_CURL_FAILURE: curlFailure,
@@ -352,9 +350,14 @@ for (const [id, base, osRelease] of derivatives) {
   });
 }
 
-test('refuses root and unsupported architecture before sudo', () => {
+test('refuses root by an unoverrideable EUID check', () => {
+  const source = fs.readFileSync(installer, 'utf8');
+  assert.match(source, /\[\[ \$EUID != 0 \]\] \|\|\n\s+fatal 'Run this installer as your desktop user without sudo\.'/);
+  assert.doesNotMatch(source, /FANG_INSTALLER_TEST_EUID|effective_euid/);
+});
+
+test('refuses unsupported architecture before sudo', () => {
   for (const [options, message] of [
-    [{ euid: '0' }, /without sudo/],
     [{ arch: 'aarch64' }, /only x86_64/],
     [{ arch: 'amd64' }, /only x86_64/]
   ]) {
@@ -507,7 +510,7 @@ test('DEB installed-version policy rejects downgrades and keeps one pair transac
     assert.match(
       fixture.commands(),
       new RegExp(
-        `^sudo apt-get install .*${path.sep}fangd_${version}-1_amd64\\.deb .*${path.sep}Fang_${version}_amd64\\.deb$`,
+        `^sudo apt-get install -y .*${path.sep}fangd_${version}-1_amd64\\.deb .*${path.sep}Fang_${version}_amd64\\.deb$`,
         'm'
       )
     );
@@ -550,7 +553,7 @@ test('RPM installed-version policy uses EVR and rejects ambiguous records', () =
     assert.match(
       fixture.commands(),
       new RegExp(
-        `^sudo dnf install .*${path.sep}fangd-${version}-1\\.x86_64\\.rpm .*${path.sep}fang-${version}-1\\.x86_64\\.rpm$`,
+        `^sudo dnf install -y .*${path.sep}fangd-${version}-1\\.x86_64\\.rpm .*${path.sep}fang-${version}-1\\.x86_64\\.rpm$`,
         'm'
       )
     );

@@ -243,7 +243,6 @@ capture_identity() {
   local passwd
   local passwd_user
   local passwd_uid
-  local ignored
 
   TARGET_USER=$(id -un)
   TARGET_UID=$(id -u)
@@ -253,7 +252,7 @@ capture_identity() {
     fatal 'The desktop username contains unsupported characters.'
   passwd=$(getent passwd "$TARGET_USER") ||
     fatal "Could not resolve desktop user $TARGET_USER through getent."
-  IFS=: read -r passwd_user ignored passwd_uid ignored ignored TARGET_HOME ignored <<< "$passwd"
+  IFS=: read -r passwd_user _ passwd_uid _ _ TARGET_HOME _ <<< "$passwd"
   [[ $passwd_user == "$TARGET_USER" && $passwd_uid == "$TARGET_UID" && $TARGET_HOME == /* ]] ||
     fatal "Invalid passwd entry for desktop user $TARGET_USER."
 }
@@ -516,9 +515,9 @@ install_selected_packages() {
     return 0
   fi
   if [[ $PACKAGE_FAMILY == deb ]]; then
-    sudo apt-get install "$WORK_DIR/$DEB_FANGD" "$WORK_DIR/$DEB_FANG"
+    sudo apt-get install -y "$WORK_DIR/$DEB_FANGD" "$WORK_DIR/$DEB_FANG"
   else
-    sudo dnf install "$WORK_DIR/$RPM_FANGD" "$WORK_DIR/$RPM_FANG"
+    sudo dnf install -y "$WORK_DIR/$RPM_FANGD" "$WORK_DIR/$RPM_FANG"
   fi
 }
 
@@ -592,11 +591,7 @@ readonly RPM_FANGD="fangd-${VERSION}-1.x86_64.rpm"
   configure_output
   print_banner
 
-  local effective_euid=$EUID
-  if [[ ${FANG_INSTALLER_TESTING:-} == 1 ]]; then
-    effective_euid=${FANG_INSTALLER_TEST_EUID:-$effective_euid}
-  fi
-  [[ $effective_euid != 0 ]] ||
+  [[ $EUID != 0 ]] ||
     fatal 'Run this installer as your desktop user without sudo.'
   [[ $(uname -m) == x86_64 ]] ||
     fatal 'Fang release packages support only x86_64 systems.'

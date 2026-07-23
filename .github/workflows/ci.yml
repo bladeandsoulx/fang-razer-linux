@@ -23,6 +23,7 @@ jobs:
       - run: node --test app/scripts/version.test.mjs
       - run: node packaging/installer/installer.test.mjs
       - run: node packaging/release/release-contract.test.mjs
+      - run: node packaging/release/publish.test.mjs
       - run: node packaging/deb/verify.test.mjs
       - run: node --test packaging/rpm/build-script.test.mjs packaging/rpm/metadata.test.mjs
       - run: >
