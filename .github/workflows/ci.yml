@@ -25,7 +25,9 @@ jobs:
       - run: node packaging/release/release-contract.test.mjs
       - run: node packaging/deb/verify.test.mjs
       - run: node --test packaging/rpm/build-script.test.mjs packaging/rpm/metadata.test.mjs
-      - run: shellcheck install.sh packaging/install.sh packaging/rpm/build.sh packaging/rpm/verify.sh packaging/deb/verify.sh
+      - run: >
+          shellcheck install.sh packaging/install.sh packaging/rpm/build.sh
+          packaging/rpm/verify.sh packaging/deb/verify.sh packaging/release/publish.sh
 
   daemon:
     name: protocol + daemon
