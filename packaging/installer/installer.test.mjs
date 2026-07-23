@@ -656,6 +656,23 @@ test('missing group and failed service are fatal with bounded diagnostics', () =
 
 test('banner snapshot and color behavior follow terminal capabilities', () => {
   const banner = fs.readFileSync(path.join(root, 'packaging/installer/banner.txt'), 'utf8');
+  const lines = banner.trimEnd().split('\n');
+  assert.equal(lines.length, 10);
+  assert.equal(lines[0], '    ██╗   ██╗   ███████╗ █████╗ ███╗   ██╗ ██████╗');
+  assert.equal(lines[5], '       ╚═╝      ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝');
+  assert.equal(lines[6], '');
+  assert.equal(lines[7], '    ━━━ RAZER BLADE CONTROL // INSTALLER ━━━━━━━━━━━');
+  assert.equal(lines[8], '        FANS  ◆  POWER  ◆  LIGHTING  ◆  TELEMETRY');
+
+  const bannerVersion = lines[9].match(
+    /^        VERIFIED RELEASE  ·  v(\d+\.\d+\.\d+)  ·  x86_64$/
+  );
+  assert.ok(bannerVersion, 'banner metadata must contain a semantic version and x86_64');
+  assert.equal(bannerVersion[1], version);
+  for (const line of lines) {
+    assert.ok([...line].length <= 72, `banner line is wider than 72 columns: ${line}`);
+  }
+
   const noColor = makeFixture({
     osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
     tty: '1'
@@ -663,6 +680,7 @@ test('banner snapshot and color behavior follow terminal capabilities', () => {
   const noColorResult = noColor.run();
   assert.equal(noColorResult.status, 0, noColorResult.stdout + noColorResult.stderr);
   assert.ok(noColorResult.stdout.startsWith(banner));
+  assert.equal(noColorResult.stdout.indexOf(banner), noColorResult.stdout.lastIndexOf(banner));
   assert.doesNotMatch(noColorResult.stdout, /\u001b\[/);
   noColor.cleanup();
 
@@ -673,7 +691,22 @@ test('banner snapshot and color behavior follow terminal capabilities', () => {
   });
   const colorResult = color.run();
   assert.equal(colorResult.status, 0, colorResult.stdout + colorResult.stderr);
-  assert.match(colorResult.stdout, /\u001b\[/);
+  assert.match(
+    colorResult.stdout,
+    /\u001b\[1;92m    ██╗   ██╗   \u001b\[1;97m███████╗/
+  );
+  assert.match(
+    colorResult.stdout,
+    /\u001b\[1;96m    ━━━ RAZER BLADE CONTROL \/\/ INSTALLER ━━━━━━━━━━━/
+  );
+  assert.match(
+    colorResult.stdout,
+    new RegExp(`\\u001b\\[37m        VERIFIED RELEASE  ·  v${version.replaceAll('.', '\\.')}  ·  x86_64`)
+  );
+  const strippedColor = colorResult.stdout.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.ok(strippedColor.startsWith(banner));
+  assert.equal(strippedColor.indexOf(banner), strippedColor.lastIndexOf(banner));
+  assert.doesNotMatch(strippedColor, /\u001b/);
   color.cleanup();
 
   const nonInteractive = makeFixture({
@@ -683,7 +716,7 @@ test('banner snapshot and color behavior follow terminal capabilities', () => {
   });
   const nonInteractiveResult = nonInteractive.run();
   assert.equal(nonInteractiveResult.status, 0);
-  assert.doesNotMatch(nonInteractiveResult.stdout, /Fang Installer/);
+  assert.doesNotMatch(nonInteractiveResult.stdout, /RAZER BLADE CONTROL|███████╗/);
   assert.doesNotMatch(nonInteractiveResult.stdout, /\u001b\[/);
   nonInteractive.cleanup();
 });
