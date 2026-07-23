@@ -32,16 +32,17 @@ warning. Remove the override after adding a verified model profile.
 
 ## 1. Install and check the daemon
 
-Use the package path for the distribution:
+Use the release installer on a supported x86_64 distribution. Run it as your
+desktop user, not with `sudo`:
 
 ```sh
-# Ubuntu/Debian source build:
-sudo ./packaging/install.sh
+curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
+```
 
-# Fedora 43/44 prebuilt release packages:
-sudo dnf install ./fangd-*.rpm ./fang-*.rpm
-sudo systemctl enable --now fangd
-sudo usermod -aG fang "$USER"  # log out and back in once
+For an Ubuntu/Debian source build instead:
+
+```sh
+sudo ./packaging/install-from-source.sh
 ```
 
 Then inspect the daemon:

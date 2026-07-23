@@ -31,6 +31,18 @@ Before cutting a release, run `node app/scripts/version.mjs set X.Y.Z`, update
 the newest CHANGELOG entry, then run `node app/scripts/version.mjs check`.
 CI rejects mismatched Cargo, npm, Tauri, lockfile or changelog versions.
 
+For installer-enabled releases, a repository administrator must first enable
+immutable releases under **Settings → Releases**. Add an
+`IMMUTABLE_RELEASES_TOKEN` Actions secret backed by a fine-grained token with
+read-only **Administration** repository permission. The ordinary workflow
+token retains only `contents: write` for draft creation and publication.
+
+The tag workflow refuses an existing release, stages exactly `install.sh`,
+`SHA256SUMS`, two DEBs, and two RPMs, validates remote sizes and SHA-256
+digests, then publishes once and confirms the result is immutable and latest.
+If validation fails after draft creation, inspect and manually remove that
+unpublished draft before retrying; automation never overwrites it.
+
 ## Adding support for your Blade
 
 1. Run through [HARDWARE_TESTING.md](HARDWARE_TESTING.md) on your machine.

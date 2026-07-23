@@ -1,7 +1,7 @@
 # Fang release installer and immutable publication
 
 **Date:** 2026-07-18
-**Status:** Approved
+**Status:** Implemented for v0.9.4
 
 ## Goal
 

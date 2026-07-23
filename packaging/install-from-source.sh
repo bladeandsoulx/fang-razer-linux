@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build and install Fang from source on Debian/Ubuntu.
-# Usage: sudo ./packaging/install.sh   (run from the repo root)
+# Usage: sudo ./packaging/install-from-source.sh   (run from the repo root)
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then

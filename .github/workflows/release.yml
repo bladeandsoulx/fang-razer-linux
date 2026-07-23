@@ -31,7 +31,7 @@ jobs:
       - run: node packaging/deb/verify.test.mjs
       - run: node --test packaging/rpm/build-script.test.mjs packaging/rpm/metadata.test.mjs
       - run: >
-          shellcheck install.sh packaging/install.sh packaging/deb/verify.sh
+          shellcheck install.sh packaging/install-from-source.sh packaging/deb/verify.sh
           packaging/rpm/build.sh packaging/rpm/verify.sh packaging/release/publish.sh
 
   debs:

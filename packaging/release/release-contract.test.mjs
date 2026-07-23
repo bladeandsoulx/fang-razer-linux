@@ -121,3 +121,31 @@ test('stageRelease rejects package metadata mismatches before staging', () => {
   assert.equal(fs.existsSync(outputDir), false);
   fs.rmSync(root, { recursive: true });
 });
+
+test('documentation exposes release, review, integrity, manual, and source install paths', () => {
+  const repositoryRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+  const readme = fs.readFileSync(path.join(repositoryRoot, 'README.md'), 'utf8');
+  const contributing = fs.readFileSync(path.join(repositoryRoot, 'CONTRIBUTING.md'), 'utf8');
+  const hardware = fs.readFileSync(path.join(repositoryRoot, 'HARDWARE_TESTING.md'), 'utf8');
+  const sourceInstaller = path.join(repositoryRoot, 'packaging/install-from-source.sh');
+
+  assert.equal(fs.existsSync(path.join(repositoryRoot, 'packaging/install.sh')), false);
+  assert.ok(fs.statSync(sourceInstaller).mode & 0o111);
+  assert.match(
+    readme,
+    /curl -fsSL https:\/\/github\.com\/bladeandsoulx\/fang-razer-linux\/releases\/latest\/download\/install\.sh \| bash/
+  );
+  assert.match(readme, /curl -fLO .*releases\/latest\/download\/install\.sh/);
+  assert.match(readme, /less install\.sh\nbash install\.sh/);
+  assert.match(readme, /releases\/download\/v0\.9\.4\/\{install\.sh,SHA256SUMS\}/);
+  assert.match(readme, /sha256sum --check .*install\.sh/);
+  assert.match(readme, /Ubuntu 22\.04.*Ubuntu 24\.04.*Debian 12.*Debian 13/s);
+  assert.match(readme, /Fedora 43.*Fedora 44/s);
+  assert.match(readme, /without `sudo`|not with `sudo`/);
+  assert.match(readme, /refuses downgrades/i);
+  assert.match(readme, /manual package installation/i);
+  assert.match(readme, /packaging\/install-from-source\.sh/);
+  assert.match(contributing, /IMMUTABLE_RELEASES_TOKEN/);
+  assert.match(contributing, /read-only.*Administration|Administration.*read-only/is);
+  assert.match(hardware, /packaging\/install-from-source\.sh/);
+});

@@ -87,58 +87,90 @@ project. No kernel driver (DKMS) needed.
 The privileged daemon (`fangd`) owns the hardware; the desktop app is an
 unprivileged client (socket access via the `fang` group).
 
-## Install (Ubuntu / Debian)
+## Install
 
-From source:
+Run the release installer as your desktop user, without `sudo`:
 
 ```sh
-git clone https://github.com/bladeandsoulx/fang-razer-linux && cd fang-razer-linux
-sudo ./packaging/install.sh
+curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
 ```
 
-The script installs build dependencies, builds and installs both the `fangd`
-daemon and the app as `.deb` packages (so `sudo apt remove fangd fang` cleanly
-uninstalls), enables the service, and adds you to the `fang` group (log out and
-back in once for group membership to apply).
+The installer selects the matching package pair, downloads and validates both
+packages before asking for sudo, installs or upgrades the app and daemon
+together, enables `fangd`, and adds your captured desktop user to the `fang`
+group when needed. It refuses downgrades. Log out and back in only if it says
+group membership was newly added.
 
-### Prebuilt packages
+Release-tested x86_64 bases are Ubuntu 22.04 and Ubuntu 24.04, Debian 12 and
+Debian 13, plus Fedora 43 and Fedora 44. Zorin, Linux Mint, and Pop!_OS are
+accepted when they report a supported Ubuntu base; derivatives that explicitly
+report a supported Debian or Fedora base are also accepted. Derivatives receive
+a compatible-family warning because they are not release-tested directly.
+Root invocation, other architectures, ambiguous platform data, and unsupported
+base releases are rejected before package installation.
 
-Each [release](https://github.com/bladeandsoulx/fang-razer-linux/releases) attaches two
-`.deb`s — the `fangd` daemon and the app. After installing both, add yourself
-to the `fang` group so the app can reach the daemon socket, then log out and
-back in:
+### Inspect before running
+
+If you prefer to review the script locally:
 
 ```sh
-sudo apt install ./fangd_*.deb ./Fang_*.deb
-sudo usermod -aG fang "$USER"   # then log out and back in
+curl -fLO https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh
+less install.sh
+bash install.sh
 ```
 
-Without the group step the app just shows "daemon offline" — the socket is
-`root:fang` and only the daemon runs as root.
+Checksums and immutable releases protect the published package set, but they do
+not make a piped script equivalent to reviewing it first.
 
-## Install (Fedora 43 / 44)
+### Verify the pinned v0.9.4 installer
 
-GitHub releases include x86_64 RPMs for the daemon and desktop app. Download
-both files from the same release, then install and activate them:
+Download the installer and checksum manifest from the same explicit tag so a
+new latest release cannot appear between requests:
 
 ```sh
-sudo dnf install ./fangd-*.rpm ./fang-*.rpm
+curl -fLO 'https://github.com/bladeandsoulx/fang-razer-linux/releases/download/v0.9.4/{install.sh,SHA256SUMS}'
+grep '  install.sh$' SHA256SUMS > install.sh.sha256
+sha256sum --check install.sh.sha256
+less install.sh
+bash install.sh
+```
+
+### Manual package installation
+
+As a fallback, download both packages for one release and install them in one
+transaction:
+
+```sh
+# Ubuntu/Debian
+sudo apt install ./fangd_0.9.4-1_amd64.deb ./Fang_0.9.4_amd64.deb
+
+# Fedora 43/44
+sudo dnf install ./fangd-0.9.4-1.x86_64.rpm ./fang-0.9.4-1.x86_64.rpm
+```
+
+Then reconcile access and the service:
+
+```sh
 sudo systemctl enable --now fangd
-sudo usermod -aG fang "$USER"
+sudo usermod -aG fang "$USER"   # log out and back in once
 ```
 
-Log out and back in once after `usermod`; the desktop app needs the new group
-membership to access `/run/fangd.sock`. Diagnose the daemon with
-`systemctl status fangd` and `journalctl -u fangd`. Remove both packages with:
+Without `fang` group membership the app reports that the daemon is offline,
+because `/run/fangd.sock` is owned by `root:fang`. Remove Fang with
+`sudo apt remove fang fangd` or `sudo dnf remove fang fangd`.
+
+### Build from source on Ubuntu/Debian
+
+The source-build path is separate from the release installer:
 
 ```sh
-sudo dnf remove fang fangd
+git clone https://github.com/bladeandsoulx/fang-razer-linux
+cd fang-razer-linux
+sudo ./packaging/install-from-source.sh
 ```
 
-These first RPMs are unsigned direct downloads rather than a configured DNF
-repository. Fedora package installation is tested in Fedora 43/44 containers;
-physical Razer hardware and SELinux-enforcing behavior depend on community
-validation through `HARDWARE_TESTING.md`.
+It installs build dependencies, builds both DEBs, installs them, enables the
+service, and adds the invoking user to `fang`.
 
 ## Supported hardware
 
