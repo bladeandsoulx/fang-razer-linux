@@ -3,264 +3,201 @@
 [![CI](https://github.com/bladeandsoulx/fang-razer-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/bladeandsoulx/fang-razer-linux/actions/workflows/ci.yml)
 [![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
 
-**An open-source Razer Synapse alternative for Razer Blade laptops on Linux.**
-Control performance modes, safe custom fan curves, battery charging, keyboard
-RGB, GPU mode, displays and live thermals — no Windows required.
+**Control your Razer Blade without Windows.**
 
-## A Razer Synapse alternative for Linux laptops
+Fang is a free, open-source Linux app for performance modes, fan curves,
+battery charging, keyboard lighting, GPU switching, displays, and live
+temperatures.
 
-[Razer Synapse 4](https://www.razer.com/gb-en/synapse-4) is Razer's official
-device-control platform for customization, performance settings, profiles and
-lighting. Fang brings the laptop-focused controls Razer Blade Linux users need
-into a native, safety-first desktop app.
+## Install — one command
 
-| Razer Blade control | Fang on Linux |
-|---|---|
-| Laptop performance modes and power levels | ✅ |
-| Automatic, manual and custom fan curves | ✅ thermal safety override always active |
-| Battery Health Optimizer / charge limit | ✅ on supported models |
-| Laptop keyboard RGB and lid logo lighting | ✅ on supported models |
-| GPU mode, refresh rate and display controls | ✅ |
-| Live temperatures, power and fan RPM | ✅ |
-| Mouse/keyboard remapping and macros | ❌ not currently supported |
+> ### Copy. Paste. Done.
+>
+> Open **Terminal**, paste this one line, and press **Enter**:
 
-Fang is focused on **Razer Blade laptops**, rather than claiming full Synapse
-parity across every Razer peripheral. It currently recognizes 48 Blade models
-from 2015–2025.
+```bash
+curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
+```
 
-## Screenshots
+**That is it.** When installation finishes, open **Fang** from your app menu.
+
+Run the command as your normal user—do not add `sudo`. Enter your password only
+when the installer asks. If it says group access was added, log out and back in
+once, then open Fang.
+
+The installer chooses the correct packages for your Linux system, checks them,
+installs the app and background service together, and upgrades an existing Fang
+installation safely.
+
+## See Fang in action
 
 ![Fang live thermal dashboard for a Razer Blade laptop on Linux](docs/screenshots/dashboard.png)
 
 | Custom fan curves with thermal protection | Performance modes and power automation |
 |---|---|
 | ![Fang custom Razer Blade fan curve editor on Linux](docs/screenshots/fan-curve.png) | ![Fang Razer Blade performance modes on Linux](docs/screenshots/performance.png) |
-| Keyboard, logo and display lighting | GPU mode and refresh-rate controls |
+| Keyboard, logo, and display lighting | GPU mode and refresh-rate controls |
 | ![Fang Razer Blade RGB and display controls on Linux](docs/screenshots/lighting.png) | ![Fang Razer Blade GPU switching and refresh-rate controls on Linux](docs/screenshots/gpu-display.png) |
 
-_Screenshots use Fang's built-in hardware simulator; the desktop UI is the
-same when connected to `fangd` on a supported Razer Blade._
+_These screenshots use Fang's built-in hardware simulator. The real app has the
+same interface._
 
-## What Fang controls
+## What Fang can do
 
-- 🎛 **Performance modes** — Silent / Balanced / Gaming, plus Custom
-  with per-CPU/GPU power levels (including CPU overclock boost on supported
-  models)
-- 🔌 **Power automation** — auto-switch to a chosen profile when you plug in or
-  unplug, with an independent fan choice (mode curve or pinned-quiet) per source
-- 🌀 **Fan control** — automatic EC curve, manual RPM, or an editable software
-  curve, clamped to per-model limits with a non-disableable thermal override
-- 🔋 **Battery Health Optimizer** — Synapse-style charge limiter (50–80 %) to
-  slow battery wear, on models that support it
-- 🎹 **Lighting** — keyboard backlight brightness, hardware effects (Static RGB
-  / Spectrum / Wave) and the lid logo LED (Static / Breathing)
-- 🖼 **GPU mode** — Integrated / Hybrid / dGPU switching via `prime-select`
-  or `envycontrol` (the Linux equivalent of Synapse's GPU mode; applies at
-  next logout/reboot)
-- ⚡ **Refresh rate** — switch the active display's Hz instantly, on GNOME
-  (Wayland or Xorg, via Mutter), KDE (kscreen-doctor) or bare X11 (xrandr)
-- 🎨 **Display color & brightness** — color-temperature presets and a brightness
-  slider for a DDC/CI external monitor (VCP 0x14 / 0x10), plus internal-panel
-  backlight brightness (the wide-gamut laptop panel itself has no color-managed
-  gamut clamp on Linux)
-- 📊 **Live dashboard** — CPU/GPU temperatures and power draw, fan RPM,
-  90-second history
-- 🖥 **Tray + autostart** — quick mode switching from the system tray
-- 🔁 Settings persist and are re-applied after reboot and suspend/resume
+- 🎛️ **Performance modes:** Silent, Balanced, Gaming, and Custom CPU/GPU power.
+- 🌀 **Fan control:** Automatic, fixed RPM, or your own fan curve.
+- 🔌 **Power automation:** Change performance and fan settings when you plug in
+  or unplug the charger.
+- 🔋 **Battery care:** Limit charging to 50–80% on supported models.
+- 🌈 **Lighting:** Control keyboard brightness/effects and the lid logo.
+- 🎮 **GPU mode:** Switch between integrated, hybrid, and dedicated graphics.
+- 🖥️ **Displays:** Change refresh rate, brightness, and supported external
+  monitor color settings.
+- 📊 **Live dashboard:** See temperatures, power use, fan speed, and a
+  90-second history.
+- 🔁 **Tray and autostart:** Quickly switch modes and restore settings after
+  reboot or sleep.
 
-Fang talks to the Blade's embedded controller directly over USB HID — the
-same protocol Razer Synapse uses, byte-verified against the
-[razer-laptop-control](https://github.com/Razer-Linux/razer-laptop-control-no-dkms)
-project. No kernel driver (DKMS) needed.
+Fang focuses on **Razer Blade laptops**. It does not currently remap
+mice/keyboards or create macros, so it is not a complete Razer Synapse
+replacement for every Razer device.
 
-## Architecture
+## Will it work on my laptop?
 
-```
-┌────────────────────────┐   JSON lines over socket   ┌──────────────────────────┐
-│ fang (Tauri + Svelte)  │ ◄────────────────────────► │ fangd (Rust, root,       │
-│  dashboard · modes ·   │   /run/fangd.sock          │        systemd service)  │
-│  fan · tray            │                            │  Razer EC HID · hwmon ·  │
-└────────────────────────┘                            │  NVML · state persist    │
-                                                      └──────────────────────────┘
-```
+Fang recognizes **48 Razer Blade models from 2015–2025**. Each known model has
+its own safe fan limits and feature list.
 
-The privileged daemon (`fangd`) owns the hardware; the desktop app is an
-unprivileged client (socket access via the `fang` group).
+Tested x86_64 Linux bases:
 
-## Install in one command
+- Ubuntu 22.04 and 24.04
+- Debian 12 and 13
+- Fedora 43 and 44
 
-1. Open Terminal.
-2. Paste the command below and press Enter.
+Linux Mint, Zorin OS, Pop!_OS, and other derivatives are accepted when they
+report one of those supported Ubuntu, Debian, or Fedora bases. The installer
+warns that derivatives are not tested directly. Other CPU architectures and
+unsupported base releases are rejected before anything is installed.
 
-   ```sh
-   curl -fsSL https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh | bash
-   ```
+Unknown Razer product IDs are monitor-only by default. Check the
+[full model list](crates/fang-protocol/src/models.rs) or follow
+[the hardware testing guide](HARDWARE_TESTING.md) when adding a model.
 
-3. Open Fang from your app menu when installation finishes.
+## Safety
 
-Run the command as your regular desktop user, without `sudo`. Enter your
-password only when the installer asks. If it says group access was added, log
-out and back in once before opening Fang.
+Fang controls the laptop's embedded controller directly, but hardware-changing
+features have guardrails:
 
-The installer selects the matching package pair, downloads and validates both
-packages before asking for sudo, installs or upgrades the app and daemon
-together, enables `fangd`, and adds your captured desktop user to the `fang`
-group when needed. It refuses downgrades.
+- Fan speeds and curves are kept inside the limits for your model.
+- A guard that cannot be disabled forces maximum fans at CPU **95 °C** or GPU
+  **87 °C**. Missing or stale CPU temperature data also forces maximum fans.
+- Stopping the background service restores the laptop's automatic fan control.
+- App/daemon version mismatches allow status viewing but block hardware changes.
+- Custom CPU **Boost** means more heat and fan noise.
 
-Release-tested x86_64 bases are Ubuntu 22.04 and Ubuntu 24.04, Debian 12 and
-Debian 13, plus Fedora 43 and Fedora 44. Zorin, Linux Mint, and Pop!_OS are
-accepted when they report a supported Ubuntu base; derivatives that explicitly
-report a supported Debian or Fedora base are also accepted. Derivatives receive
-a compatible-family warning because they are not release-tested directly.
-Root invocation, other architectures, ambiguous platform data, and unsupported
-base releases are rejected before package installation.
+The laptop's own thermal protections continue to work as an additional safety
+layer.
 
-### Inspect before running
+## More install options
 
-If you prefer to review the script locally:
+<details>
+<summary><strong>Check the installer before running it</strong></summary>
 
-```sh
+```bash
 curl -fLO https://github.com/bladeandsoulx/fang-razer-linux/releases/latest/download/install.sh
 less install.sh
 bash install.sh
 ```
 
-Checksums and immutable releases protect the published package set, but they do
-not make a piped script equivalent to reviewing it first.
+This lets you read the script before it asks for administrator access.
 
-### Verify the pinned v0.9.4 installer
+</details>
 
-Download the installer and checksum manifest from the same explicit tag so a
-new latest release cannot appear between requests:
+<details>
+<summary><strong>Install release packages manually</strong></summary>
 
-```sh
-curl -fLO 'https://github.com/bladeandsoulx/fang-razer-linux/releases/download/v0.9.4/{install.sh,SHA256SUMS}'
-grep '  install.sh$' SHA256SUMS > install.sh.sha256
-sha256sum --check install.sh.sha256
-less install.sh
-bash install.sh
-```
+Download both packages from the same release, then install them together:
 
-### Manual package installation
-
-As a fallback, download both packages for one release and install them in one
-transaction:
-
-```sh
-# Ubuntu/Debian
+```bash
+# Ubuntu or Debian
 sudo apt install ./fangd_0.9.4-1_amd64.deb ./Fang_0.9.4_amd64.deb
 
-# Fedora 43/44
+# Fedora 43 or 44
 sudo dnf install ./fangd-0.9.4-1.x86_64.rpm ./fang-0.9.4-1.x86_64.rpm
 ```
 
-Then reconcile access and the service:
+Enable the background service and give your user access:
 
-```sh
+```bash
 sudo systemctl enable --now fangd
-sudo usermod -aG fang "$USER"   # log out and back in once
+sudo usermod -aG fang "$USER"
 ```
 
-Without `fang` group membership the app reports that the daemon is offline,
-because `/run/fangd.sock` is owned by `root:fang`. Remove Fang with
+Log out and back in once after adding the group. To remove Fang, run
 `sudo apt remove fang fangd` or `sudo dnf remove fang fangd`.
 
-### Build from source on Ubuntu/Debian
+</details>
 
-The source-build path is separate from the release installer:
+<details>
+<summary><strong>Build from source on Ubuntu or Debian</strong></summary>
 
-```sh
+```bash
 git clone https://github.com/bladeandsoulx/fang-razer-linux
 cd fang-razer-linux
 sudo ./packaging/install-from-source.sh
 ```
 
-It installs build dependencies, builds both DEBs, installs them, enables the
-service, and adds the invoking user to `fang`.
+The script installs the build tools, builds and installs Fang, starts its
+background service, and gives your user access.
+
+</details>
+
+## Development
+
+You can develop Fang on any OS without Razer hardware.
+
+```bash
+# Terminal 1: run the daemon with simulated hardware
+cargo run -p fangd -- --mock --tcp 127.0.0.1:7331
+
+# Terminal 2: run the desktop app
+cd app
+npm install
+npm run tauri dev
+```
+
+For the browser-only UI simulator:
+
+```bash
+cd app
+npm run dev
+```
+
+Run the Rust tests with `cargo test --workspace`. See
+[`app/scripts/version.mjs`](app/scripts/version.mjs) for release version
+management.
+
+Real hardware control uses the protected `/run/fangd.sock` Unix socket. TCP is
+available only with simulated hardware on a numeric loopback address.
 
 ## Support Fang
 
-Fang's in-app Support screen lists the creator's BTC, USDT and Solana donation
-addresses. The USDT address accepts
-BNB Smart Chain (BEP20) and Ethereum (ERC20).
+Fang's in-app **Support** screen lists the creator's BTC, USDT, and Solana
+donation addresses. USDT supports BNB Smart Chain (BEP20) and Ethereum (ERC20).
 
-## Supported hardware
+## Credits and license
 
-Fang recognizes **48 Blade models** (2015–2025) with per-model fan limits and
-feature flags (CPU overclock boost, battery charge limiter, lid logo LED)
-imported from [Razer-Control](https://github.com/Rintastic247/Razer-Control)'s
-device table (GPL-2.0). See
-[`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs)
-for the full list.
+Fang is licensed under [GPL-2.0](LICENSE).
 
-| Profile source | Status |
-|---|---|
-| Blade 18 2023 (`02a0`), Blade 18 2024 (`02b8`) | ✅ complete profile — fan limits + all feature flags |
-| 46 further models | ✅ limits from Razer-Control's table (field-tested by that project) |
-| Unknown `1532:*` PIDs | 🔒 monitor-only unless that exact PID is explicitly approved |
-
-Adding a model is a one-line entry in
-[`crates/fang-protocol/src/models.rs`](crates/fang-protocol/src/models.rs) —
-PRs welcome. First time on real hardware? Follow
-[HARDWARE_TESTING.md](HARDWARE_TESTING.md).
-
-For bring-up of an unknown Blade, approve only its exact hexadecimal PID with
-`FANGD_ALLOW_UNVERIFIED_PID` (for example `02c1`). The daemon still requires a
-vendor-defined HID interface and uses conservative limits. With systemd, add
-the variable through `sudo systemctl edit fangd`, then restart the service:
-
-```ini
-[Service]
-Environment=FANGD_ALLOW_UNVERIFIED_PID=02c1
-```
-
-## Development (any OS, no Razer hardware needed)
-
-```sh
-# terminal 1 — daemon with simulated hardware on TCP
-cargo run -p fangd -- --mock --tcp 127.0.0.1:7331
-
-# terminal 2 — the app (connects via FANGD_ADDR, defaults to tcp on non-Linux)
-cd app && npm install && npm run tauri dev
-```
-
-TCP is accepted only with `--mock` and a numeric loopback address. Real
-hardware control is always restricted to the group-protected Unix socket.
-
-Or UI-only in a plain browser (built-in simulator, no daemon at all):
-
-```sh
-cd app && npm run dev    # http://localhost:1420
-```
-
-Run the tests with `cargo test --workspace`. Release versions are kept in sync
-with `node app/scripts/version.mjs check`; use the same tool with
-`set MAJOR.MINOR.PATCH` when preparing a release.
-
-## Safety notes
-
-- Manual RPM and custom curves are clamped to the model profile's limits. A
-  daemon guard that cannot be disabled forces maximum fans at CPU ≥95 °C or
-  GPU ≥87 °C, in addition to the EC's own thermal failsafes. Missing or stale
-  CPU telemetry also forces maximum fans.
-- Stopping the daemon (`systemctl stop fangd`) restores the EC's automatic fan
-  policy. systemd repeats that restore after the process exits as a fallback.
-- App and daemon packages negotiate socket API version 2. Read-only status
-  remains available on a mismatch, while hardware-changing commands are blocked.
-- Custom CPU "Boost" raises power limits — expect heat and fan noise.
-
-## Credits & license
-
-GPL-2.0. Much of Fang's hardware knowledge — the EC packet layouts, the
-48-model device table, and the battery-limiter and lighting commands — was
-derived from **[Razer-Control](https://github.com/Rintastic247/Razer-Control)**
-by **Rintastic247** (GPL-2.0), the maintained continuation of
-[razer-laptop-control-no-dkms](https://github.com/Razer-Linux/razer-laptop-control-no-dkms),
-with additional reference from [OpenRazer](https://openrazer.github.io/).
-If Fang is useful to you, please consider
-[supporting Razer-Control's author](https://www.paypal.com/donate/?hosted_button_id=H4SCC24R8KS4A).
+Much of its hardware knowledge—EC packets, the 48-model device table, battery
+limiting, and lighting commands—comes from
+[Razer-Control](https://github.com/Rintastic247/Razer-Control) by
+**Rintastic247** (GPL-2.0), the maintained continuation of
+[razer-laptop-control-no-dkms](https://github.com/Razer-Linux/razer-laptop-control-no-dkms).
+Fang also uses information from [OpenRazer](https://openrazer.github.io/).
+If Fang helps you, please consider
+[supporting the Razer-Control author](https://www.paypal.com/donate/?hosted_button_id=H4SCC24R8KS4A).
 
 Assisted-by: OpenAI GPT-5.6 via Codex and Claude Fable 5 via CLI.
 
-Fang is not affiliated with or endorsed by Razer Inc. "Razer" and "Synapse"
+Fang is not affiliated with or endorsed by Razer Inc. “Razer” and “Synapse”
 are trademarks of Razer Inc.
