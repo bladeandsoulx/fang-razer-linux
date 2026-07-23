@@ -2,6 +2,21 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.9.5',
+      date: '2026-07-23',
+      title: 'Neon Fang installer',
+      groups: [
+        {
+          kind: 'Changed',
+          items: [
+            'The one-command installer now opens with the Neon Fang terminal banner.',
+            'Installation guidance is shorter and more beginner-friendly while keeping advanced verification and manual-install options.',
+            'Release-documentation checks keep historical release notes aligned with the code that actually shipped.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.9.4',
       date: '2026-07-23',
       title: 'Immutable release installer',

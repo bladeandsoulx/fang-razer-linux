@@ -7,4 +7,4 @@
 
     ━━━ RAZER BLADE CONTROL // INSTALLER ━━━━━━━━━━━
         FANS  ◆  POWER  ◆  LIGHTING  ◆  TELEMETRY
-        VERIFIED RELEASE  ·  v0.9.4  ·  x86_64
+        VERIFIED RELEASE  ·  v0.9.5  ·  x86_64

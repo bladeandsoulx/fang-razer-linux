@@ -598,8 +598,8 @@ mutate_system() {
 main() {
 set -euo pipefail
 umask 077
-readonly VERSION='0.9.4'
-readonly RELEASE_TAG='v0.9.4'
+readonly VERSION='0.9.5'
+readonly RELEASE_TAG='v0.9.5'
 readonly REPOSITORY='bladeandsoulx/fang-razer-linux'
 readonly RELEASE_BASE="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}"
 readonly DEB_FANG="Fang_${VERSION}_amd64.deb"

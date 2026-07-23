@@ -4,6 +4,16 @@ All notable changes to Fang are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.5] — 2026-07-23 — Neon Fang installer
+
+### Changed
+
+- The one-command installer now opens with the Neon Fang terminal banner.
+- Installation guidance is shorter and more beginner-friendly while retaining
+  inspect-first, checksum-verification, manual-package, and source-build paths.
+- Release documentation checks protect historical release notes from changes
+  that shipped only after their tag.
+
 ## [0.9.4] — 2026-07-23 — Immutable release installer
 
 ### Added
