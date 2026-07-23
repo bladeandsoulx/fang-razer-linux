@@ -28,6 +28,7 @@ function makeFixture({ badDigest = false } = {}) {
   const publishedJson = path.join(fixture, 'published.json');
   const publishedMarker = path.join(fixture, 'published');
   fs.mkdirSync(bin);
+  fs.symlinkSync(process.execPath, path.join(bin, 'node'));
   fs.mkdirSync(releaseDir);
   fs.writeFileSync(log, '');
 
@@ -107,6 +108,7 @@ esac
     FANG_TEST_PUBLISHED_MARKER: publishedMarker
   };
   return {
+    bin,
     releaseDir,
     log,
     run() {
@@ -117,6 +119,18 @@ esac
     }
   };
 }
+
+test('publication fixture supplies Node inside its isolated PATH', () => {
+  const fixture = makeFixture();
+  try {
+    assert.equal(
+      fs.realpathSync(path.join(fixture.bin, 'node')),
+      fs.realpathSync(process.execPath)
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
 
 test('publisher creates, validates, and publishes one six-asset release', () => {
   const fixture = makeFixture();
