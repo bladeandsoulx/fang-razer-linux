@@ -2,6 +2,52 @@
   // Mirrors CHANGELOG.md, condensed for the panel. Newest first.
   const RELEASES = [
     {
+      version: '0.9.4',
+      date: '2026-07-23',
+      title: 'Immutable release installer',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'A release-locked one-command installer selects and validates the matching Fang and fangd package pair before asking for sudo.',
+            'USDT donations identify BNB Smart Chain (BEP20) and Ethereum (ERC20) as the accepted networks.'
+          ]
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'Releases publish as an immutable six-asset set containing the installer, checksum manifest, two DEBs and two RPMs.'
+          ]
+        },
+        {
+          kind: 'Removed',
+          items: [
+            'The previous generic crypto-transfer warning and instruction to confirm the USDT network with the creator were removed.'
+          ]
+        }
+      ]
+    },
+    {
+      version: '0.9.3',
+      date: '2026-07-18',
+      title: 'Fedora RPM support',
+      groups: [
+        {
+          kind: 'Added',
+          items: [
+            'Native x86_64 RPM packages support Fedora 43 and Fedora 44.',
+            'Fedora package gates cover build, installation, launch, dependencies and removal.'
+          ]
+        },
+        {
+          kind: 'Changed',
+          items: [
+            'GitHub releases are created only after both DEBs and both RPMs pass their release gates.'
+          ]
+        }
+      ]
+    },
+    {
       version: '0.9.2',
       date: '2026-07-17',
       title: 'Support Fang',

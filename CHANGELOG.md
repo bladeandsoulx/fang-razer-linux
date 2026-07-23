@@ -24,6 +24,12 @@ All notable changes to Fang are documented here. The format is based on
 - The source-build helper is named `packaging/install-from-source.sh`, leaving
   the repository-root `install.sh` for the release installer.
 
+### Removed
+
+- Removed the generic crypto-transfer warning and the instruction to confirm
+  the USDT network with the Fang creator. The Support screen now states both
+  accepted networks directly.
+
 ## [0.9.3] — 2026-07-18 — Fedora RPM support
 
 ### Added
