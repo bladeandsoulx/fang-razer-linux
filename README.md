@@ -172,6 +172,12 @@ sudo ./packaging/install-from-source.sh
 It installs build dependencies, builds both DEBs, installs them, enables the
 service, and adds the invoking user to `fang`.
 
+## Support Fang
+
+Fang's in-app Support screen lists the creator's BTC, USDT and Solana donation
+addresses. The USDT address accepts
+BNB Smart Chain (BEP20) and Ethereum (ERC20).
+
 ## Supported hardware
 
 Fang recognizes **48 Blade models** (2015–2025) with per-model fan limits and
