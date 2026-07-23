@@ -57,14 +57,18 @@ upload_asset() {
   local release_id=$1
   local name=$2
 
-  GH_TOKEN=$GITHUB_TOKEN gh api \
-    --hostname uploads.github.com \
-    --method POST \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'X-GitHub-Api-Version: 2026-03-10' \
-    -H 'Content-Type: application/octet-stream' \
-    --input "$RELEASE_DIR/$name" \
-    "$API/releases/$release_id/assets?name=$name" >/dev/null
+  curl \
+    --fail-with-body \
+    --silent \
+    --show-error \
+    --location \
+    --request POST \
+    --header 'Accept: application/vnd.github+json' \
+    --header "Authorization: Bearer $GITHUB_TOKEN" \
+    --header 'X-GitHub-Api-Version: 2026-03-10' \
+    --header 'Content-Type: application/octet-stream' \
+    --data-binary "@$RELEASE_DIR/$name" \
+    "https://uploads.github.com$API/releases/$release_id/assets?name=$name" >/dev/null
 }
 
 main() {

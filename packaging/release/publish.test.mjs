@@ -95,6 +95,19 @@ case "$joined" in
 esac
 `
   );
+  executable(
+    path.join(bin, 'curl'),
+    `#!/usr/bin/env bash
+for argument in "$@"; do
+  case "$argument" in
+    https://uploads.github.com/*)
+      printf '%s\\n' "$argument" >> "\${FANG_TEST_GH_LOG}"
+      ;;
+  esac
+done
+printf '{}\\n'
+`
+  );
 
   const env = {
     PATH: `${bin}:/usr/bin:/bin`,
@@ -182,4 +195,10 @@ test('publisher names six explicit uploads and never mutates an existing release
   assert.match(source, /X-GitHub-Api-Version: 2026-03-10/);
   assert.match(source, /make_latest=true/);
   assert.doesNotMatch(source, /--clobber|--method DELETE|release delete|\*\.deb|\*\.rpm/);
+});
+
+test('publisher uses the documented release-upload origin without CLI host rewriting', () => {
+  const source = fs.readFileSync(publisher, 'utf8');
+  assert.match(source, /https:\/\/uploads\.github\.com/);
+  assert.doesNotMatch(source, /--hostname uploads\.github\.com/);
 });
