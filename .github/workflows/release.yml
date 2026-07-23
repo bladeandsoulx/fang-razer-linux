@@ -50,6 +50,30 @@ jobs:
           path: target/deb-dist/*.deb
           if-no-files-found: error
 
+  deb-test:
+    name: test DEBs (${{ matrix.image }})
+    needs: debs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu:22.04, ubuntu:24.04, debian:12, debian:13]
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - run: >
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+          git ca-certificates systemd python3 dbus-x11 xvfb xauth
+          desktop-file-utils procps
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-debs
+          path: target/deb-dist
+      - run: packaging/deb/verify.sh target/deb-dist
+
   rpms:
     name: build RPMs (Fedora 43)
     runs-on: ubuntu-latest
@@ -109,7 +133,7 @@ jobs:
 
   draft-release:
     name: create four-package draft release
-    needs: [debs, rpm-test]
+    needs: [deb-test, rpm-test]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

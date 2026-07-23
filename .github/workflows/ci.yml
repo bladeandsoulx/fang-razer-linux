@@ -6,6 +6,27 @@ on:
   pull_request:
 
 jobs:
+  contracts:
+    name: installer + release contracts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - run: npm ci
+        working-directory: app
+      - run: node app/scripts/version.mjs check
+      - run: node --test app/scripts/version.test.mjs
+      - run: node packaging/installer/installer.test.mjs
+      - run: node packaging/release/release-contract.test.mjs
+      - run: node packaging/deb/verify.test.mjs
+      - run: node --test packaging/rpm/build-script.test.mjs packaging/rpm/metadata.test.mjs
+      - run: shellcheck install.sh packaging/install.sh packaging/rpm/build.sh packaging/rpm/verify.sh packaging/deb/verify.sh
+
   daemon:
     name: protocol + daemon
     runs-on: ubuntu-latest
@@ -43,6 +64,8 @@ jobs:
           workspaces: app/src-tauri
       - run: npm ci
         working-directory: app
+      - run: npm test
+        working-directory: app
       - run: npm run build
         working-directory: app
       - run: cargo fmt --check
@@ -51,6 +74,65 @@ jobs:
         working-directory: app/src-tauri
       - run: cargo test --bin fang
         working-directory: app/src-tauri
+
+  deb-build:
+    name: build DEBs (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - run: >
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev
+          libayatana-appindicator3-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            app/src-tauri
+      - name: Build exact DEB pair
+        run: |
+          cargo install cargo-deb --locked
+          cargo deb -p fangd
+          npm ci --prefix app
+          npm --prefix app run tauri -- build --bundles deb
+          version="$(node -p "require('./app/package.json').version")"
+          mkdir -p target/deb-dist
+          cp "target/debian/fangd_${version}-1_amd64.deb" target/deb-dist/
+          cp "app/src-tauri/target/release/bundle/deb/Fang_${version}_amd64.deb" target/deb-dist/
+          test "$(find target/deb-dist -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fang-debs
+          path: target/deb-dist/*.deb
+          if-no-files-found: error
+
+  deb-test:
+    name: test DEBs (${{ matrix.image }})
+    needs: deb-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu:22.04, ubuntu:24.04, debian:12, debian:13]
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - run: >
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+          git ca-certificates systemd python3 dbus-x11 xvfb xauth
+          desktop-file-utils procps
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fang-debs
+          path: target/deb-dist
+      - run: packaging/deb/verify.sh target/deb-dist
 
   rpm-build:
     name: build RPMs (Fedora 43)
