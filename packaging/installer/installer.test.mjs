@@ -32,7 +32,12 @@ function makeFixture({
   manifestTransform = (value) => value,
   corruptAsset = '',
   metadata = {},
-  installed = {}
+  installed = {},
+  tty = '0',
+  noColor = true,
+  groupExists = true,
+  serviceBecomesActive = true,
+  systemctlEnableFailure = false
 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fang-installer-test-'));
   const bin = path.join(dir, 'bin');
@@ -40,6 +45,7 @@ function makeFixture({
   const assets = path.join(dir, 'assets');
   const log = path.join(dir, 'commands.log');
   const releaseFile = path.join(dir, 'os-release');
+  const serviceState = path.join(dir, 'service-state');
   fs.mkdirSync(bin, { mode: 0o700 });
   fs.mkdirSync(temporary, { mode: 0o700 });
   fs.mkdirSync(assets, { mode: 0o700 });
@@ -84,7 +90,10 @@ esac
 printf 'getent %s\\n' "$*" >> "\${FANG_TEST_LOG}"
 case "\${1:-}:\${2:-}" in
   passwd:home) printf 'home:x:1000:1000:Fang Test:%s:/bin/bash\\n' "\${FANG_TEST_HOME}" ;;
-  group:fang) printf 'fang:x:987:\\n' ;;
+  group:fang)
+    [[ "\${FANG_TEST_GROUP_EXISTS}" == 1 ]] || exit 2
+    printf 'fang:x:987:\\n'
+    ;;
   *) exit 2 ;;
 esac
 `
@@ -118,7 +127,11 @@ esac
   );
   executable(
     path.join(bin, 'sudo'),
-    `#!/usr/bin/env bash\nprintf 'sudo %s\\n' "$*" >> "\${FANG_TEST_LOG}"\nexit 0\n`
+    `#!/usr/bin/env bash
+printf 'sudo %s\\n' "$*" >> "\${FANG_TEST_LOG}"
+[[ "\${1:-}" == -v ]] && exit 0
+"$@"
+`
   );
   executable(
     path.join(bin, 'dpkg-deb'),
@@ -196,8 +209,28 @@ else
 fi
 `
   );
-  for (const command of ['systemctl', 'apt-get', 'dnf', 'usermod']) {
-    executable(path.join(bin, command), '#!/usr/bin/env bash\nexit 0\n');
+  executable(
+    path.join(bin, 'systemctl'),
+    `#!/usr/bin/env bash
+printf 'systemctl %s\\n' "$*" >> "\${FANG_TEST_LOG}"
+case "\${1:-}" in
+  enable)
+    [[ "\${FANG_TEST_SYSTEMCTL_ENABLE_FAILURE}" == 0 ]] || exit 1
+    if [[ "\${FANG_TEST_SERVICE_BECOMES_ACTIVE}" == 1 ]]; then
+      printf 'active\\n' > "\${FANG_TEST_SERVICE_STATE}"
+    fi
+    ;;
+  is-active) [[ -f "\${FANG_TEST_SERVICE_STATE}" ]] ;;
+  status) printf 'fangd fixture status: failed\\n'; exit 3 ;;
+  *) exit 2 ;;
+esac
+`
+  );
+  for (const command of ['apt-get', 'dnf', 'usermod']) {
+    executable(
+      path.join(bin, command),
+      `#!/usr/bin/env bash\nprintf '${command} %s\\n' "$*" >> "\${FANG_TEST_LOG}"\nexit 0\n`
+    );
   }
 
   const env = {
@@ -210,13 +243,17 @@ fi
     FANG_TEST_CURL_FAILURE: curlFailure,
     FANG_TEST_CURL_SIGNAL: curlSignal,
     FANG_TEST_ASSET_DIR: assets,
+    FANG_TEST_TTY: tty,
     FANG_TEST_GROUPS: groups,
+    FANG_TEST_GROUP_EXISTS: groupExists ? '1' : '0',
+    FANG_TEST_SERVICE_BECOMES_ACTIVE: serviceBecomesActive ? '1' : '0',
+    FANG_TEST_SYSTEMCTL_ENABLE_FAILURE: systemctlEnableFailure ? '1' : '0',
+    FANG_TEST_SERVICE_STATE: serviceState,
     FANG_TEST_HOME: path.join(dir, 'home'),
     FANG_TEST_LOG: log,
     HOME: path.join(dir, 'untrusted-home'),
     USER: 'untrusted-user',
     SUDO_USER: 'untrusted-sudo-user',
-    NO_COLOR: '1',
     FANG_TEST_DEB_FANG_PACKAGE: metadata.debFangPackage ?? 'fang',
     FANG_TEST_DEB_FANG_VERSION: metadata.debFangVersion ?? version,
     FANG_TEST_DEB_FANG_ARCH: metadata.debFangArch ?? 'amd64',
@@ -236,6 +273,7 @@ fi
     FANG_TEST_INSTALLED_FANG: installed.fang ?? '',
     FANG_TEST_INSTALLED_FANGD: installed.fangd ?? ''
   };
+  if (noColor) env.NO_COLOR = '1';
   return {
     dir,
     env,
@@ -538,6 +576,122 @@ test('RPM installed-version policy uses EVR and rejects ambiguous records', () =
     assert.notEqual(result.status, 0);
     assert.doesNotMatch(fixture.commands(), /^sudo /m);
     fixture.cleanup();
+  }
+});
+
+test('runs one ordered elevated phase and reconciles service and group', () => {
+  const fixture = makeFixture({
+    osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n'
+  });
+  const result = fixture.run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const commands = fixture.commands();
+  const ordered = [
+    'sudo -v',
+    'sudo apt-get install ',
+    'getent group fang',
+    'sudo systemctl enable --now fangd',
+    'systemctl is-active --quiet fangd',
+    'id -nG home',
+    'sudo usermod -aG fang home'
+  ];
+  let cursor = -1;
+  for (const command of ordered) {
+    const next = commands.indexOf(command);
+    assert.ok(next > cursor, `${command} was out of order:\n${commands}`);
+    cursor = next;
+  }
+  assert.match(result.stdout, /fangd is enabled and active/);
+  assert.match(result.stdout, /Added home to the fang group/);
+  assert.match(result.stdout, /Log out and back in once/);
+  fixture.cleanup();
+});
+
+test('equal packages still repair state without a package transaction', () => {
+  const fixture = makeFixture({
+    osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+    installed: { fang: version, fangd: `${version}-1` },
+    groups: 'home fang'
+  });
+  const result = fixture.run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const commands = fixture.commands();
+  assert.match(commands, /^sudo -v$/m);
+  assert.doesNotMatch(commands, /^sudo (?:apt-get|dnf) /m);
+  assert.match(commands, /^sudo systemctl enable --now fangd$/m);
+  assert.doesNotMatch(commands, /^sudo usermod /m);
+  fixture.cleanup();
+});
+
+test('missing group and failed service are fatal with bounded diagnostics', () => {
+  const missingGroup = makeFixture({
+    osRelease: 'ID=fedora\nVERSION_ID="44"\nPLATFORM_ID="platform:f44"\n',
+    groupExists: false
+  });
+  const missingResult = missingGroup.run();
+  assert.notEqual(missingResult.status, 0);
+  assert.match(missingResult.stderr, /fang group/i);
+  assert.doesNotMatch(missingGroup.commands(), /^sudo usermod /m);
+  missingGroup.cleanup();
+
+  for (const options of [
+    { serviceBecomesActive: false },
+    { systemctlEnableFailure: true }
+  ]) {
+    const fixture = makeFixture({
+      osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+      ...options
+    });
+    const result = fixture.run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /fangd service/i);
+    assert.match(fixture.commands(), /^systemctl status --no-pager --lines=20 fangd$/m);
+    assert.match(result.stdout, /fangd fixture status: failed/);
+    fixture.cleanup();
+  }
+});
+
+test('banner snapshot and color behavior follow terminal capabilities', () => {
+  const banner = fs.readFileSync(path.join(root, 'packaging/installer/banner.txt'), 'utf8');
+  const noColor = makeFixture({
+    osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+    tty: '1'
+  });
+  const noColorResult = noColor.run();
+  assert.equal(noColorResult.status, 0, noColorResult.stdout + noColorResult.stderr);
+  assert.ok(noColorResult.stdout.startsWith(banner));
+  assert.doesNotMatch(noColorResult.stdout, /\u001b\[/);
+  noColor.cleanup();
+
+  const color = makeFixture({
+    osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+    tty: '1',
+    noColor: false
+  });
+  const colorResult = color.run();
+  assert.equal(colorResult.status, 0, colorResult.stdout + colorResult.stderr);
+  assert.match(colorResult.stdout, /\u001b\[/);
+  color.cleanup();
+
+  const nonInteractive = makeFixture({
+    osRelease: 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n',
+    tty: '0',
+    noColor: false
+  });
+  const nonInteractiveResult = nonInteractive.run();
+  assert.equal(nonInteractiveResult.status, 0);
+  assert.doesNotMatch(nonInteractiveResult.stdout, /Fang Installer/);
+  assert.doesNotMatch(nonInteractiveResult.stdout, /\u001b\[/);
+  nonInteractive.cleanup();
+});
+
+test('all verification calls precede the first sudo call in the installer source', () => {
+  const source = fs.readFileSync(installer, 'utf8');
+  const main = source.slice(source.indexOf('main() {'));
+  const mutation = main.indexOf('mutate_system');
+  assert.ok(mutation >= 0);
+  for (const call of ['verify_checksums', 'verify_deb_metadata', 'verify_rpm_metadata', 'classify_installed_packages']) {
+    assert.ok(main.indexOf(call) < mutation, `${call} must precede mutate_system`);
   }
 });
 

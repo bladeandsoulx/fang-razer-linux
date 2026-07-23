@@ -5,20 +5,58 @@
 # lives inside a function and the sole invocation is the final line.
 
 fatal() {
-  printf '✗ %s\n' "$*" >&2
+  printf '%b✗%b %s\n' "${COLOR_ERROR:-}" "${COLOR_RESET:-}" "$*" >&2
   return 1
 }
 
 step() {
-  printf '→ %s\n' "$*"
+  printf '%b→%b %s\n' "${COLOR_CURRENT:-}" "${COLOR_RESET:-}" "$*"
 }
 
 complete() {
-  printf '✓ %s\n' "$*"
+  printf '%b✓%b %s\n' "${COLOR_SUCCESS:-}" "${COLOR_RESET:-}" "$*"
 }
 
 warn() {
-  printf '! %s\n' "$*"
+  printf '%b!%b %s\n' "${COLOR_WARNING:-}" "${COLOR_RESET:-}" "$*"
+}
+
+configure_output() {
+  OUTPUT_TTY=0
+  if [[ ${FANG_INSTALLER_TESTING:-} == 1 ]]; then
+    OUTPUT_TTY=${FANG_TEST_TTY:-0}
+  elif [[ -t 1 ]]; then
+    OUTPUT_TTY=1
+  fi
+
+  COLOR_SUCCESS=
+  COLOR_CURRENT=
+  COLOR_WARNING=
+  COLOR_ERROR=
+  COLOR_BANNER=
+  COLOR_RESET=
+  if [[ $OUTPUT_TTY == 1 && -z ${NO_COLOR+x} ]]; then
+    COLOR_SUCCESS=$'\033[32m'
+    COLOR_CURRENT=$'\033[36m'
+    COLOR_WARNING=$'\033[33m'
+    COLOR_ERROR=$'\033[31m'
+    COLOR_BANNER=$'\033[35m'
+    COLOR_RESET=$'\033[0m'
+  fi
+}
+
+print_banner() {
+  [[ $OUTPUT_TTY == 1 ]] || return 0
+  printf '%b%s%b\n' "$COLOR_BANNER" \
+    '┌─────────────────────────────────────────────────────────┐' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER" \
+    '│                  ◆ Fang Installer                       │' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER" \
+    '├─────────────────────────────────────────────────────────┤' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER" \
+    '│  Fan, power, lighting, and telemetry for Razer Blade.   │' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER" \
+    '└─────────────────────────────────────────────────────────┘' "$COLOR_RESET"
 }
 
 cleanup() {
@@ -211,6 +249,8 @@ capture_identity() {
   TARGET_UID=$(id -u)
   [[ -n $TARGET_USER && $TARGET_USER != root && $TARGET_UID =~ ^[0-9]+$ && $TARGET_UID != 0 ]] ||
     fatal 'Could not identify a non-root desktop user.'
+  [[ $TARGET_USER =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] ||
+    fatal 'The desktop username contains unsupported characters.'
   passwd=$(getent passwd "$TARGET_USER") ||
     fatal "Could not resolve desktop user $TARGET_USER through getent."
   IFS=: read -r passwd_user ignored passwd_uid ignored ignored TARGET_HOME ignored <<< "$passwd"
@@ -475,12 +515,64 @@ install_selected_packages() {
   if [[ $PACKAGE_TRANSACTION != 1 ]]; then
     return 0
   fi
-  sudo -v
   if [[ $PACKAGE_FAMILY == deb ]]; then
     sudo apt-get install "$WORK_DIR/$DEB_FANGD" "$WORK_DIR/$DEB_FANG"
   else
     sudo dnf install "$WORK_DIR/$RPM_FANGD" "$WORK_DIR/$RPM_FANG"
   fi
+}
+
+service_diagnostics() {
+  systemctl status --no-pager --lines=20 fangd || true
+}
+
+reconcile_service() {
+  if ! sudo systemctl enable --now fangd; then
+    service_diagnostics
+    fatal 'The fangd service could not be enabled. Run: sudo systemctl enable --now fangd'
+  fi
+  if ! systemctl is-active --quiet fangd; then
+    service_diagnostics
+    fatal 'The fangd service is not active. Run: sudo systemctl restart fangd'
+  fi
+  complete 'fangd is enabled and active'
+}
+
+confirm_group() {
+  getent group fang >/dev/null ||
+    fatal 'The fang group is missing after package installation.'
+}
+
+reconcile_group_membership() {
+  local groups
+  local group
+
+  groups=$(id -nG "$TARGET_USER") ||
+    fatal "Could not read group membership for $TARGET_USER."
+  for group in $groups; do
+    if [[ $group == fang ]]; then
+      complete "$TARGET_USER is already in the fang group"
+      return 0
+    fi
+  done
+  if ! sudo usermod -aG fang "$TARGET_USER"; then
+    fatal "Could not add $TARGET_USER to fang. Run: sudo usermod -aG fang $TARGET_USER"
+  fi
+  complete "Added $TARGET_USER to the fang group"
+  warn 'Log out and back in once before launching Fang.'
+}
+
+mutate_system() {
+  sudo -v
+  install_selected_packages
+  if [[ $PACKAGE_TRANSACTION == 1 ]]; then
+    complete "Installed Fang $VERSION"
+  else
+    complete "Fang $VERSION packages are already installed"
+  fi
+  confirm_group
+  reconcile_service
+  reconcile_group_membership
 }
 
 main() {
@@ -496,6 +588,9 @@ readonly DEB_FANG_VERSION="$VERSION"
 readonly DEB_FANGD_VERSION="${VERSION}-1"
 readonly RPM_FANG="fang-${VERSION}-1.x86_64.rpm"
 readonly RPM_FANGD="fangd-${VERSION}-1.x86_64.rpm"
+
+  configure_output
+  print_banner
 
   local effective_euid=$EUID
   if [[ ${FANG_INSTALLER_TESTING:-} == 1 ]]; then
@@ -545,12 +640,7 @@ readonly RPM_FANGD="fangd-${VERSION}-1.x86_64.rpm"
   fi
   classify_installed_packages
   complete 'Checksums and package metadata verified'
-  install_selected_packages
-  if [[ $PACKAGE_TRANSACTION == 1 ]]; then
-    complete "Installed Fang $VERSION"
-  else
-    complete "Fang $VERSION packages are already installed"
-  fi
+  mutate_system
 }
 
 main "$@"
