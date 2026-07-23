@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const installer = path.join(root, 'install.sh');
 const version = JSON.parse(fs.readFileSync(path.join(root, 'app/package.json'), 'utf8')).version;
+const [major, minor, patch] = version.split('.').map(Number);
+const newerVersion = `${major}.${minor}.${patch + 1}`;
 const releaseNames = [
   'install.sh',
   `Fang_${version}_amd64.deb`,
@@ -196,10 +198,10 @@ elif [[ "$1" == "--eval" ]]; then
     printf '0\\n'
   else
     case "\${FANG_RPM_LEFT}:\${FANG_RPM_RIGHT}" in
-      0:0.9.3-1:0:0.9.4-1) printf '%s\\n' -1 ;;
-      0:0.9.4-1:0:0.9.3-1) printf '%s\\n' 1 ;;
-      1:0.9.3-1:0:0.9.4-1) printf '%s\\n' 1 ;;
-      0:0.9.4-2:0:0.9.4-1) printf '%s\\n' 1 ;;
+      0:0.9.3-1:0:${version}-1) printf '%s\\n' -1 ;;
+      0:${version}-1:0:0.9.3-1) printf '%s\\n' 1 ;;
+      1:0.9.3-1:0:${version}-1) printf '%s\\n' 1 ;;
+      0:${version}-2:0:${version}-1) printf '%s\\n' 1 ;;
       *) exit 2 ;;
     esac
   fi
@@ -527,7 +529,7 @@ test('DEB installed-version policy rejects downgrades and keeps one pair transac
   equal.cleanup();
 
   for (const installed of [
-    { fang: '0.9.5', fangd: '' },
+    { fang: newerVersion, fangd: '' },
     { fang: '', fangd: `${version}-2` },
     { fang: '1:0.9.3-1', fangd: `${version}-1` }
   ]) {
