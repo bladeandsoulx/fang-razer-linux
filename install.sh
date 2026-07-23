@@ -33,30 +33,51 @@ configure_output() {
   COLOR_CURRENT=
   COLOR_WARNING=
   COLOR_ERROR=
-  COLOR_BANNER=
+  COLOR_BANNER_MARK=
+  COLOR_BANNER_WORDMARK=
+  COLOR_BANNER_HUD=
+  COLOR_BANNER_METADATA=
   COLOR_RESET=
   if [[ $OUTPUT_TTY == 1 && -z ${NO_COLOR+x} ]]; then
     COLOR_SUCCESS=$'\033[32m'
     COLOR_CURRENT=$'\033[36m'
     COLOR_WARNING=$'\033[33m'
     COLOR_ERROR=$'\033[31m'
-    COLOR_BANNER=$'\033[35m'
+    COLOR_BANNER_MARK=$'\033[1;92m'
+    COLOR_BANNER_WORDMARK=$'\033[1;97m'
+    COLOR_BANNER_HUD=$'\033[1;96m'
+    COLOR_BANNER_METADATA=$'\033[37m'
     COLOR_RESET=$'\033[0m'
   fi
 }
 
 print_banner() {
   [[ $OUTPUT_TTY == 1 ]] || return 0
-  printf '%b%s%b\n' "$COLOR_BANNER" \
-    '┌─────────────────────────────────────────────────────────┐' "$COLOR_RESET"
-  printf '%b%s%b\n' "$COLOR_BANNER" \
-    '│                  ◆ Fang Installer                       │' "$COLOR_RESET"
-  printf '%b%s%b\n' "$COLOR_BANNER" \
-    '├─────────────────────────────────────────────────────────┤' "$COLOR_RESET"
-  printf '%b%s%b\n' "$COLOR_BANNER" \
-    '│  Fan, power, lighting, and telemetry for Razer Blade.   │' "$COLOR_RESET"
-  printf '%b%s%b\n' "$COLOR_BANNER" \
-    '└─────────────────────────────────────────────────────────┘' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '    ██╗   ██╗   ' "$COLOR_BANNER_WORDMARK" \
+    '███████╗ █████╗ ███╗   ██╗ ██████╗' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '    ██║   ██║   ' "$COLOR_BANNER_WORDMARK" \
+    '██╔════╝██╔══██╗████╗  ██║██╔════╝' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '    ╚██╗ ██╔╝   ' "$COLOR_BANNER_WORDMARK" \
+    '█████╗  ███████║██╔██╗ ██║██║  ███╗' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '     ╚████╔╝    ' "$COLOR_BANNER_WORDMARK" \
+    '██╔══╝  ██╔══██║██║╚██╗██║██║   ██║' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '      ╚██╔╝     ' "$COLOR_BANNER_WORDMARK" \
+    '██║     ██║  ██║██║ ╚████║╚██████╔╝' "$COLOR_RESET"
+  printf '%b%s%b%s%b\n' "$COLOR_BANNER_MARK" \
+    '       ╚═╝      ' "$COLOR_BANNER_WORDMARK" \
+    '╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝' "$COLOR_RESET"
+  printf '\n'
+  printf '%b%s%b\n' "$COLOR_BANNER_HUD" \
+    '    ━━━ RAZER BLADE CONTROL // INSTALLER ━━━━━━━━━━━' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER_HUD" \
+    '        FANS  ◆  POWER  ◆  LIGHTING  ◆  TELEMETRY' "$COLOR_RESET"
+  printf '%b%s%b\n' "$COLOR_BANNER_METADATA" \
+    "        VERIFIED RELEASE  ·  v${VERSION}  ·  x86_64" "$COLOR_RESET"
 }
 
 cleanup() {
