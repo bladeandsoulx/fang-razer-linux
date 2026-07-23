@@ -26,8 +26,8 @@ when the installer asks. If it says group access was added, log out and back in
 once, then open Fang.
 
 The installer chooses the correct packages for your Linux system, checks them,
-installs the app and background service together, and upgrades an existing Fang
-installation safely.
+installs the app and background service together, upgrades an existing Fang
+installation safely, and refuses downgrades.
 
 ## See Fang in action
 
@@ -109,6 +109,15 @@ bash install.sh
 ```
 
 This lets you read the script before it asks for administrator access.
+
+For an extra integrity check, download the installer and checksum manifest from
+the pinned v0.9.4 release:
+
+```bash
+curl -fLO 'https://github.com/bladeandsoulx/fang-razer-linux/releases/download/v0.9.4/{install.sh,SHA256SUMS}'
+grep '  install.sh$' SHA256SUMS > install.sh.sha256
+sha256sum --check install.sh.sha256
+```
 
 </details>
 
