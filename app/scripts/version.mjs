@@ -89,6 +89,7 @@ function currentVersions() {
   const tauri = JSON.parse(read('app/src-tauri/tauri.conf.json'));
   const changelog = read('CHANGELOG.md');
   const installer = read('install.sh');
+  const banner = read('packaging/installer/banner.txt');
   const fangRpm = read('packaging/rpm/fang.spec');
   const fangdRpm = read('packaging/rpm/fangd.spec');
   return [
@@ -105,6 +106,14 @@ function currentVersions() {
     ['fang RPM spec', rpmField(fangRpm, 'Version')],
     ['fangd RPM spec', rpmField(fangdRpm, 'Version')],
     ['release installer', capture('release installer version', installer, /^readonly VERSION='([^']+)'$/m)],
+    [
+      'installer banner',
+      capture(
+        'installer banner version',
+        banner,
+        /^        VERIFIED RELEASE  ·  v(\d+\.\d+\.\d+)  ·  x86_64$/m
+      )
+    ],
     ['CHANGELOG.md', capture('latest changelog release', changelog, /^## \[(\d+\.\d+\.\d+)\]/m)]
   ];
 }
@@ -219,6 +228,15 @@ function setVersion(version) {
     '$1' + version + '$2'
   );
   write('install.sh', text);
+
+  text = read('packaging/installer/banner.txt');
+  text = replaceRequired(
+    'installer banner version',
+    text,
+    /^(        VERIFIED RELEASE  ·  v)\d+\.\d+\.\d+(  ·  x86_64)$/m,
+    '$1' + version + '$2'
+  );
+  write('packaging/installer/banner.txt', text);
 
   console.log('Updated manifests and lockfiles to ' + version + '.');
   console.log('Update CHANGELOG.md, then run this script with check.');

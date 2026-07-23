@@ -18,6 +18,7 @@ const files = [
   'app/src-tauri/Cargo.toml',
   'app/src-tauri/Cargo.lock',
   'app/src-tauri/tauri.conf.json',
+  'packaging/installer/banner.txt',
   'packaging/rpm/fang.spec',
   'packaging/rpm/fangd.spec'
 ];
@@ -108,6 +109,10 @@ test('set updates both RPM versions and the next-minor upper bound', () => {
   const installer = fs.readFileSync(path.join(dir, 'install.sh'), 'utf8');
   assert.match(installer, /^readonly VERSION='0\.10\.0'$/m);
   assert.match(installer, /^readonly RELEASE_TAG='v0\.10\.0'$/m);
+  assert.match(
+    fs.readFileSync(path.join(dir, 'packaging/installer/banner.txt'), 'utf8'),
+    /^        VERIFIED RELEASE  ·  v0\.10\.0  ·  x86_64$/m
+  );
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -121,6 +126,21 @@ test('check rejects stale release-installer identity', () => {
   const result = run(dir, 'check');
   assert.notEqual(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stderr, /release installer|synchronized/i);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('check rejects a stale installer banner identity', () => {
+  const dir = fixture();
+  const banner = path.join(dir, 'packaging/installer/banner.txt');
+  const stale = mutateFixture(
+    fs.readFileSync(banner, 'utf8'),
+    `v${fixtureVersion}`,
+    'v9.8.7'
+  );
+  fs.writeFileSync(banner, stale);
+  const result = run(dir, 'check');
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stderr, /installer banner|synchronized/i);
   fs.rmSync(dir, { recursive: true });
 });
 
