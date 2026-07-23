@@ -15,7 +15,7 @@
       id: 'usdt',
       name: 'Tether',
       symbol: 'USDT',
-      network: 'Confirm network before sending',
+      network: 'BNB Smart Chain (BEP20) · Ethereum (ERC20)',
       address: '0xe5a217c178aff5D4f28224c304560656a22d60E4'
     },
     {
@@ -163,13 +163,6 @@
     {/each}
   </div>
 
-  <div class="safety rise" style="animation-delay:240ms" role="note">
-    <Icon name="warn" size={15} />
-    <p>
-      Crypto transfers cannot be reversed. Verify the complete address and network
-      before sending. For USDT, confirm the intended network with the Fang creator first.
-    </p>
-  </div>
   {#if copyError}<p class="copy-error" role="alert">{copyError}</p>{/if}
 
   <div class="section-head roadmap-head rise" style="animation-delay:270ms">
@@ -455,30 +448,9 @@
     background: rgba(68, 214, 44, 0.07);
   }
 
-  .safety {
-    display: flex;
-    align-items: flex-start;
-    gap: 9px;
-    margin-top: -4px;
-    padding: 10px 12px;
-    border: 1px solid rgba(255, 180, 84, 0.2);
-    border-radius: 7px;
-    color: var(--amber);
-    background: rgba(255, 180, 84, 0.055);
-  }
-
-  .safety :global(svg) {
-    flex: 0 0 auto;
-    margin-top: 1px;
-  }
-
-  .safety p,
   .copy-error {
     font-size: 10.5px;
     line-height: 1.5;
-  }
-
-  .copy-error {
     margin-top: -10px;
     color: var(--red);
   }
